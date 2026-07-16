@@ -2,9 +2,13 @@ import { Pressable, StyleSheet } from 'react-native';
 import { MIN_TOUCH, palette, radius, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import { AppText, type TextVariant } from './AppText';
+import { Icon, ICONS, type IconName } from './Icon';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'md' | 'lg';
+
+/** Botão principal de tela. Alto o bastante pra ser o assunto, sem virar bloco. */
+const HEIGHT_LG = 52;
 
 export type ButtonProps = {
   label: string;
@@ -12,9 +16,18 @@ export type ButtonProps = {
   variant?: ButtonVariant;
   size?: ButtonSize;
   disabled?: boolean;
-  icon?: string;
+  /**
+   * Nome do catálogo de ícones. String solta ainda funciona (as telas antigas
+   * passam emoji e glifo), mas o certo é um `IconName`: emoji ignora a cor da
+   * tinta e desalinha em cada sistema.
+   */
+  icon?: IconName | (string & {});
   full?: boolean;
 };
+
+function isIconName(value: string): value is IconName {
+  return Object.prototype.hasOwnProperty.call(ICONS, value);
+}
 
 export function Button({
   label,
@@ -59,7 +72,7 @@ export function Button({
       style={({ pressed }) => [
         styles.root,
         {
-          minHeight: size === 'lg' ? MIN_TOUCH + spacing.md : MIN_TOUCH,
+          minHeight: size === 'lg' ? HEIGHT_LG : MIN_TOUCH,
           paddingHorizontal: size === 'lg' ? spacing.xl : spacing.lg,
           backgroundColor: background,
           borderWidth: variant === 'secondary' ? StyleSheet.hairlineWidth : 0,
@@ -71,15 +84,19 @@ export function Button({
       ]}
     >
       {/*
-        O ícone leva a MESMA tinta do rótulo. Sem isso ele cai no default do
-        AppText (ink.primary), que no tema escuro é branco — e branco sobre o
-        amarelo da marca dá 1.58:1. Emoji ignora `color` e mascara o problema;
-        um glifo de texto como "+" o acende na hora.
+        O ícone leva a MESMA tinta do rótulo. Sem isso ele cai no default
+        (ink.primary), que no tema escuro é branco — e branco sobre o amarelo da
+        marca dá 1.58:1. Emoji ignora `color` e mascara o problema; um glifo de
+        verdade o acende na hora.
       */}
       {icon ? (
-        <AppText variant={textVariant} style={{ color: ink }}>
-          {icon}
-        </AppText>
+        isIconName(icon) ? (
+          <Icon name={icon} size={size === 'lg' ? 20 : 18} color={ink} />
+        ) : (
+          <AppText variant={textVariant} style={{ color: ink }}>
+            {icon}
+          </AppText>
+        )
       ) : null}
       <AppText variant={textVariant} numberOfLines={1} style={{ color: ink }}>
         {label}

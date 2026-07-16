@@ -1,15 +1,33 @@
+/**
+ * Onboarding — cinco passos, um assunto por passo.
+ *
+ * A regra que desenha esta tela: TÍTULO CURTO + UMA linha de apoio + o campo +
+ * o botão. Nada mais. A versão anterior abria com dois cards e um parágrafo se
+ * apresentando antes de pedir qualquer coisa — e app que se explica em três
+ * parágrafos antes de você digitar o primeiro caractere é exatamente o que
+ * parece golpe. A Arrego continua sarcástica; ela só fala uma linha por vez.
+ *
+ * O amarelo aparece em UMA superfície: o botão da ação principal, no rodapé.
+ * O passo 1 chegou a ser um card de marca e não é mais — o rodapé do `Screen` é
+ * branco, então um botão `secondary` em cima dele sumiria, e a escolha "fundo
+ * amarelo OU botão amarelo" só tem um lado que mantém a ação visível.
+ */
+
 import { useArrego } from '@/store/useArrego';
 import { spacing } from '@/theme/tokens';
+import { useTheme } from '@/theme/useTheme';
 import type { Cents } from '@/types/models';
 import {
   AppText,
   Avatar,
   Button,
-  Card,
   Chip,
   CurrencyField,
   DayField,
+  Icon,
+  ListRow,
   Meter,
+  Reveal,
   Screen,
   TextField,
 } from '@/ui';
@@ -27,6 +45,9 @@ type Step = 1 | 2 | 3 | 4 | 5;
  * O emoji vem com nome porque o `Chip` usa o rótulo como `accessibilityLabel`:
  * um chip cujo rótulo é só "🦊" faz o leitor de tela anunciar o nome Unicode do
  * caractere. O nome também é a piada — o emoji sozinho não conta nada.
+ *
+ * Estes emoji ficam: é a cara que a PESSOA escolhe, ou seja, conteúdo. O emoji
+ * proibido é o de enfeite de interface, que virou `<Icon />`.
  */
 const EMOJIS: ReadonlyArray<{ glyph: string; name: string }> = [
   { glyph: '🙂', name: 'De boa' },
@@ -41,6 +62,7 @@ const EMOJIS: ReadonlyArray<{ glyph: string; name: string }> = [
 
 export default function Onboarding() {
   const router = useRouter();
+  const { colors } = useTheme();
   const saveProfile = useArrego((state) => state.saveProfile);
   const addIncome = useArrego((state) => state.addIncome);
   const finishOnboarding = useArrego((state) => state.finishOnboarding);
@@ -69,14 +91,19 @@ export default function Onboarding() {
     if (step > 1) goTo((step - 1) as Step);
   }
 
+  /**
+   * Negar a galeria não pode virar beco sem saída — a carinha continua sendo um
+   * caminho inteiro. O recado que era de duas frases virou uma: o botão da
+   * carinha está logo abaixo, e ele explica sozinho o que fazer em seguida.
+   */
   async function pickPhoto() {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         setPhotoNote(
           permission.canAskAgain
-            ? 'Você não deu acesso à galeria — e tudo bem, o celular é seu. Escolhe uma carinha aí embaixo, funciona igual.'
-            : 'O acesso à galeria está bloqueado nos ajustes do celular. Dá para liberar por lá, mas não precisa: escolhe uma carinha aí embaixo.',
+            ? 'Sem acesso à galeria. A carinha aqui embaixo resolve.'
+            : 'Galeria bloqueada nos ajustes. A carinha resolve.',
         );
         return;
       }
@@ -95,7 +122,7 @@ export default function Onboarding() {
       setPhotoUri(asset.uri);
       setPhotoNote(null);
     } catch {
-      setPhotoNote('A galeria não abriu. Não faço ideia do porquê. Escolhe uma carinha aí embaixo e a gente segue.');
+      setPhotoNote('A galeria não abriu. Escolhe uma carinha aqui embaixo.');
     }
   }
 
@@ -205,54 +232,65 @@ export default function Onboarding() {
     >
       <Screen scroll footer={footer}>
         <View style={styles.content}>
-          <Meter progress={step / TOTAL_STEPS} label={`Passo ${step} de ${TOTAL_STEPS}`} />
+          {/*
+            Fio de 3px, sem rótulo. "Passo 3 de 5" escrito na tela é texto que a
+            própria barra já diz — mas continua sendo anunciado no leitor de
+            tela, que não enxerga a barra.
+          */}
+          <Meter
+            progress={step / TOTAL_STEPS}
+            height={3}
+            accessibilityLabel={`Passo ${step} de ${TOTAL_STEPS}`}
+          />
 
           {step === 1 ? (
             <>
-              <Card tone="brand">
-                <View style={styles.block}>
-                  <AppText variant="title">Oi. Eu sou a Arrego.</AppText>
-                  <AppText variant="body">
-                    Eu organizo o seu dinheiro e comento o que vejo. Aviso desde já: eu sou
-                    sincera e um pouco insuportável. Não vou fingir que R$ 340 por mês em
-                    assinatura é "só um cafezinho".
-                  </AppText>
-                  <AppText variant="body">
-                    Mas o alvo é sempre o número, nunca você. Se eu apontar alguma coisa, venho
-                    junto com a saída.
-                  </AppText>
-                </View>
-              </Card>
+              <View style={styles.block}>
+                <AppText variant="title">Oi. Eu sou a Arrego.</AppText>
+                <AppText variant="body" tone="secondary">
+                  Vou te ajudar com seu dinheiro. E ser sincera demais.
+                </AppText>
+              </View>
 
-              <Card>
-                <View style={styles.block}>
-                  <AppText variant="subheading">Seus dados ficam aqui. Só aqui.</AppText>
-                  <AppText variant="body">
+              <View style={styles.block}>
+                <AppText variant="small" tone="muted">
+                  Tudo fica neste aparelho. Sem servidor, sem login.
+                </AppText>
+                {/*
+                  A promessa de privacidade não pode encolher para uma linha e
+                  sumir: a parte ruim (não existe backup, trocou de celular
+                  perdeu tudo) é a metade que um app desonesto omitiria, e
+                  omitir aqui é pior do que em qualquer outra tela — é agora que
+                  a pessoa decide entregar os dados. Então ela não sai, ela
+                  senta atrás de um toque, fechada, do jeito que o orçamento de
+                  texto manda.
+                */}
+                <Reveal label="Como assim?">
+                  <AppText variant="small" tone="secondary">
                     Não tem servidor, não tem login, não tem nuvem, não tem propaganda. Seu nome,
                     sua foto e cada número que você digitar moram nesse aparelho e não vão para
                     lugar nenhum.
                   </AppText>
-                  <AppText variant="body" tone="secondary">
+                  <AppText variant="small" tone="secondary">
                     A conta é honesta nos dois lados: trocou de celular sem exportar, perdeu tudo.
                     É o preço de ninguém mais ter acesso — inclusive eu.
                   </AppText>
-                </View>
-              </Card>
+                </Reveal>
+              </View>
             </>
           ) : null}
 
           {step === 2 ? (
             <View style={styles.block}>
-              <AppText variant="title">Como você quer ser chamado?</AppText>
+              <AppText variant="title">Como te chamo?</AppText>
               <AppText variant="body" tone="secondary">
-                Só para eu não te chamar de "usuário" pelos próximos meses.
+                Nome ou apelido. Só pra eu não te chamar de "usuário".
               </AppText>
               <TextField
                 label="Seu nome"
                 value={name}
                 onChangeText={setName}
                 placeholder="Nome ou apelido"
-                hint="Pode ser apelido. Isso não sai do aparelho, então ninguém além de você vai ler."
                 autoFocus
                 maxLength={24}
               />
@@ -261,9 +299,9 @@ export default function Onboarding() {
 
           {step === 3 ? (
             <View style={styles.block}>
-              <AppText variant="title">Bota uma cara nisso aqui.</AppText>
+              <AppText variant="title">Bota uma cara nisso.</AppText>
               <AppText variant="body" tone="secondary">
-                Opcional de verdade. A foto fica salva no aparelho, igual todo o resto.
+                Opcional. Dá pra trocar depois.
               </AppText>
 
               <View style={styles.avatarRow}>
@@ -274,7 +312,7 @@ export default function Onboarding() {
                 <Button
                   label={photoUri ? 'Trocar foto' : 'Escolher foto'}
                   variant="secondary"
-                  icon="🖼️"
+                  icon="camera"
                   onPress={() => {
                     void pickPhoto();
                   }}
@@ -291,14 +329,14 @@ export default function Onboarding() {
               </View>
 
               {photoNote ? (
-                <AppText variant="small" tone="secondary">
+                <AppText variant="small" tone="muted">
                   {photoNote}
                 </AppText>
               ) : null}
 
               <View style={styles.block}>
-                <AppText variant="caption" tone="secondary">
-                  {photoUri ? 'CARINHA — APARECE SE VOCÊ REMOVER A FOTO' : 'OU ESCOLHE UMA CARINHA'}
+                <AppText variant="caption" tone="muted">
+                  {photoUri ? 'A carinha volta se você remover a foto' : 'Ou escolhe uma carinha'}
                 </AppText>
                 <View style={styles.chipRow}>
                   {EMOJIS.map((option) => (
@@ -321,39 +359,36 @@ export default function Onboarding() {
             <View style={styles.block}>
               <AppText variant="title">Quanto entra por mês?</AppText>
               <AppText variant="body" tone="secondary">
-                O dinheiro que cai certo, todo mês. Se varia, chuta o mínimo que sempre entra — dá
-                para ajustar depois.
+                O que cai certo, todo mês. Se varia, chuta o mínimo.
               </AppText>
 
               <CurrencyField
                 label="Quanto entra"
                 cents={amountCents}
                 onChangeCents={setAmountCents}
-                hint="Só dígitos. O valor vai se montando da direita para a esquerda."
                 autoFocus
               />
 
+              {/*
+                A dica só aparece quando é acionável. Sem o dia, o "Continuar"
+                fica desligado — e botão desligado sem motivo escrito é beco sem
+                saída. Com o dia escolhido, não há o que dizer, então nada é dito.
+              */}
               <DayField
                 label="Dia que cai"
                 value={payday}
                 onChange={setPayday}
                 hint={
-                  amountCents > 0 && payday === null
-                    ? 'Escolhe o dia. É o que separa "tenho R$ 2.000" de "tenho R$ 2.000 no dia 5".'
-                    : 'Toca de novo no dia para desmarcar.'
+                  amountCents > 0 && payday === null ? 'Falta escolher o dia.' : undefined
                 }
               />
 
-              <Card tone="sunken">
-                <View style={styles.block}>
-                  <AppText variant="bodyStrong">Não tem renda fixa?</AppText>
-                  <AppText variant="small" tone="secondary">
-                    Freela, bico, mesada que varia, mês sem nada. É mais comum do que parece e não
-                    é problema — pula essa e cadastra o que entrar, quando entrar.
-                  </AppText>
-                  <Button label="Não tenho renda fixa" variant="ghost" onPress={skipIncome} />
-                </View>
-              </Card>
+              {/*
+                Era um card com título, parágrafo de consolo e botão. O rótulo do
+                botão já diz tudo o que o parágrafo dizia, e a saída continua no
+                mesmo lugar.
+              */}
+              <Button label="Não tenho renda fixa" variant="ghost" onPress={skipIncome} />
             </View>
           ) : null}
 
@@ -361,37 +396,34 @@ export default function Onboarding() {
             <View style={styles.block}>
               <AppText variant="title">Pronto. É isso.</AppText>
 
-              <Card tone="sunken">
-                <View style={styles.recap}>
-                  <Avatar name={trimmedName || 'Você'} photoUri={photoUri} emoji={emoji} size={56} />
-                  <View style={styles.grow}>
-                    <AppText variant="subheading" numberOfLines={1}>
-                      {trimmedName}
-                    </AppText>
-                    <AppText variant="small" tone="secondary">
-                      {hasIncome
-                        ? `${formatCents(amountCents)} todo dia ${payday}`
-                        : 'Sem renda fixa cadastrada'}
-                    </AppText>
-                  </View>
-                </View>
-              </Card>
+              <ListRow
+                leading={
+                  <Avatar name={trimmedName || 'Você'} photoUri={photoUri} emoji={emoji} size={40} />
+                }
+                title={trimmedName || 'Você'}
+                subtitle={
+                  hasIncome ? `${formatCents(amountCents)} todo dia ${payday}` : 'Sem renda fixa'
+                }
+              />
 
-              <AppText variant="body">
+              <AppText variant="body" tone="secondary">
                 {hasIncome
-                  ? 'Agora me conta o resto: contas, assinaturas e aquele parcelado em 12x que você finge que não existe. Eu faço as contas e digo o que elas significam. Você decide o que fazer.'
-                  : 'Quando entrar algum dinheiro, me conta. Enquanto isso, cadastra o que sai — dá para enxergar muita coisa só olhando o que já tem dono.'}
-              </AppText>
-
-              <AppText variant="small" tone="secondary">
-                Dá para mudar tudo isso depois em "Sua conta". Inclusive apagar tudo, de uma vez,
-                sem me pedir licença.
+                  ? 'Agora me conta o resto: contas, assinaturas, parcelas.'
+                  : 'Quando entrar dinheiro, me conta.'}
               </AppText>
 
               {attempted && error ? (
-                <AppText variant="small" tone="negative">
-                  {error}
-                </AppText>
+                <View style={styles.errorRow}>
+                  {/*
+                    Ícone + texto. O vermelho sozinho não conta nada a quem não
+                    o distingue — e `status.critical` aqui é preenchimento de
+                    glifo (3:1 basta), não tinta de texto.
+                  */}
+                  <Icon name="alert" size={16} color={colors.status.critical} />
+                  <AppText variant="small" tone="negative" style={styles.grow}>
+                    {error}
+                  </AppText>
+                </View>
               ) : null}
             </View>
           ) : null}
@@ -403,11 +435,13 @@ export default function Onboarding() {
 
 const styles = StyleSheet.create({
   grow: { flex: 1 },
-  content: { gap: spacing.xl },
+  // Distância entre dois assuntos diferentes: a barra de progresso, o passo, o
+  // rodapé de privacidade. É o espaço que separa — não borda, não card.
+  content: { gap: spacing.section },
   block: { gap: spacing.md },
   avatarRow: { alignItems: 'center', paddingVertical: spacing.sm },
   buttonRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  recap: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  errorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

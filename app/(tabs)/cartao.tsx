@@ -4,8 +4,23 @@
  * SEM DADO DE CARTÃO. Aqui um cartão é apelido + dias do ciclo + um limite
  * opcional. Número, CVV, validade, titular e senha não são pedidos, não são
  * guardados e não têm campo — nem escondido, nem "só pra facilitar depois".
- * O aviso no topo da tela não é decoração: é a única defesa que a pessoa tem
- * contra uma tela falsa que imite esta aqui.
+ *
+ * O AVISO ANTIGOLPE VIROU UMA LINHA, e essa é a piada da tela: ele era três
+ * parágrafos dentro de um card amarelo, no topo, gritando. Um bloco de texto
+ * jurando que não é golpe é exatamente o que um golpe faz — era o pedaço da
+ * interface que mais fazia a tela parecer aquilo que ela avisava contra. Agora
+ * é uma ListRow com cadeado e a regra em cinco palavras; o resto (a lista dos
+ * dados que não existem aqui, e o "se pedir, é golpe") está inteiro atrás do
+ * <Reveal>. A informação não saiu, parou de gritar.
+ *
+ * Continua no TOPO, e isso não é escolha estética: quem precisa desse aviso é
+ * quem caiu numa tela falsa que imita esta, e essa pessoa não rola a tela.
+ *
+ * O AMARELO DESTA TELA É UM SÓ: o botão "Nova compra". O card do aviso era
+ * amarelo, o preview da parcela era amarelo, o medidor era amarelo — três
+ * superfícies de marca disputando a mesma tela é a receita visual de pirâmide
+ * financeira. Aqui o amarelo aponta pra ação e mais nada. (O preenchimento do
+ * Meter é marca de dado, não superfície: ele segue o kit.)
  */
 
 import { installmentsForMonth } from '@/engine/analysis';
@@ -20,17 +35,19 @@ import {
   Chip,
   CurrencyField,
   DayField,
-  EmptyState,
   Field,
+  HeroFigure,
+  Icon,
   ListRow,
   Meter,
   MoneyText,
+  Reveal,
   Screen,
   SectionHeader,
   Sheet,
   TextField,
 } from '@/ui';
-import { addMonths, formatMonthLong, formatMonthShort, humanizeMonths } from '@/utils/date';
+import { addMonths, formatMonthLong, formatMonthShort } from '@/utils/date';
 import { formatCents, ratio, splitInstallments } from '@/utils/money';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -42,17 +59,30 @@ const LIMIT_ALERT = 0.8;
 
 const INSTALLMENT_OPTIONS = Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1);
 
-/** Rótulos espelham os de `engine/analysis` — a mesma compra não pode ter dois nomes. */
-const CATEGORIES: ReadonlyArray<{ key: ExpenseCategory; label: string; icon: string }> = [
-  { key: 'moradia', label: 'Moradia', icon: '🏠' },
-  { key: 'contas', label: 'Contas', icon: '💡' },
-  { key: 'mercado', label: 'Mercado', icon: '🛒' },
-  { key: 'transporte', label: 'Transporte', icon: '🚌' },
-  { key: 'saude', label: 'Saúde', icon: '💊' },
-  { key: 'educacao', label: 'Educação', icon: '📚' },
-  { key: 'lazer', label: 'Lazer', icon: '🎉' },
-  { key: 'outros', label: 'Outros', icon: '📦' },
+/**
+ * Rótulos espelham os de `engine/analysis` — a mesma compra não pode ter dois
+ * nomes. Sem emoji: o ícone da categoria era enfeite de interface (ninguém
+ * escolheu aquele carrinho), e emoji de enfeite é o que faz um app de dinheiro
+ * parecer conversa de grupo. O rótulo já identifica a categoria sozinho.
+ */
+const CATEGORIES: ReadonlyArray<{ key: ExpenseCategory; label: string }> = [
+  { key: 'moradia', label: 'Moradia' },
+  { key: 'contas', label: 'Contas' },
+  { key: 'mercado', label: 'Mercado' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'saude', label: 'Saúde' },
+  { key: 'educacao', label: 'Educação' },
+  { key: 'lazer', label: 'Lazer' },
+  { key: 'outros', label: 'Outros' },
 ];
+
+/**
+ * A regra inteira em uma linha. O texto é curto porque `ListRow` corta o título
+ * em uma linha só — e um aviso de golpe truncado com "…" é pior que nenhum.
+ * A lista dos dados que este app nunca pede fica no subtítulo e no Reveal.
+ */
+const AVISO_TITULO = 'O Arrego nunca pede dados do cartão';
+const AVISO_SUBTITULO = 'Número, CVV, senha: não existe campo.';
 
 export default function CartaoScreen() {
   const { scheme, colors } = useTheme();
@@ -114,10 +144,7 @@ export default function CartaoScreen() {
   const monthTotalByCard = useMemo(() => {
     const totals = new Map<string, Cents>();
     for (const item of installmentsForMonth(purchases, month)) {
-      totals.set(
-        item.purchase.cardId,
-        (totals.get(item.purchase.cardId) ?? 0) + item.amountCents,
-      );
+      totals.set(item.purchase.cardId, (totals.get(item.purchase.cardId) ?? 0) + item.amountCents);
     }
     return totals;
   }, [purchases, month]);
@@ -137,10 +164,7 @@ export default function CartaoScreen() {
     [cardPurchases, month],
   );
 
-  const timelineMax = useMemo(
-    () => Math.max(0, ...timeline.map((item) => item.cents)),
-    [timeline],
-  );
+  const timelineMax = useMemo(() => Math.max(0, ...timeline.map((item) => item.cents)), [timeline]);
 
   const monthOptions = useMemo(
     // Janela em volta do mês em foco: aceita parcelamento que já começou (mês
@@ -162,6 +186,13 @@ export default function CartaoScreen() {
 
   const cardValid = nickname.trim() !== '' && closingDay !== null && dueDay !== null;
   const purchaseValid = description.trim() !== '' && totalCents > 0;
+
+  /**
+   * Magnitude, não identidade: os seis meses da timeline dividem UMA cor. Um
+   * slot de série por mês faria o olho ler cada barra como uma categoria
+   * diferente — são o mesmo dado, medido seis vezes.
+   */
+  const timelineColor = seriesColor(scheme, 0);
 
   const openCardSheet = () => {
     setNickname('');
@@ -231,39 +262,56 @@ export default function CartaoScreen() {
 
   return (
     <Screen scroll>
+      {/*
+        O vão entre assuntos é `spacing.section` e vem TODO daqui: por isso todo
+        SectionHeader é `first` (o `marginTop` dele somaria ao gap e abriria 56px
+        no meio da tela). Espaço separa; borda não.
+      */}
       <View style={styles.page}>
-        <AppText variant="title">Cartão</AppText>
+        <View style={styles.head}>
+          <AppText variant="title">Cartão</AppText>
 
-        {/* Aviso de topo, nunca de rodapé: quem precisa dele não rola a tela. */}
-        <Card tone="brand">
-          <View style={styles.notice}>
-            <AppText variant="subheading">🔒 Eu não quero o seu cartão</AppText>
-            <AppText variant="body">
-              Número, CVV, validade, nome do titular, senha: nada disso é pedido aqui e nada disso
-              é guardado aqui. Não existe campo pra isso. Eu preciso do apelido e dos dias de
-              fechamento e vencimento — é só isso que me diz em que mês a parcela cai.
-            </AppText>
-            <AppText variant="bodyStrong">
-              Então anota a regra: se QUALQUER tela dentro do Arrego pedir o número do cartão, o
-              CVV ou a sua senha, não sou eu. É golpe. Não digita nada e fecha o app.
-            </AppText>
+          <View>
+            <ListRow
+              leading={<Icon name="lock" />}
+              title={AVISO_TITULO}
+              subtitle={AVISO_SUBTITULO}
+            />
+            <Reveal label="Por quê?">
+              <AppText variant="small" tone="secondary">
+                Aqui um cartão é apelido, dia de fechamento e dia de vencimento — é só isso que me
+                diz em que mês a parcela cai. Número, CVV, validade, nome do titular e senha não são
+                pedidos e não são guardados: não existe campo pra isso.
+              </AppText>
+              <AppText variant="small" tone="secondary">
+                Então anota a regra: se QUALQUER tela dentro do Arrego pedir o número do cartão, o
+                CVV ou a sua senha, não sou eu. É golpe. Não digita nada e fecha o app.
+              </AppText>
+            </Reveal>
           </View>
-        </Card>
+        </View>
 
         {activeCards.length === 0 ? (
-          <EmptyState
-            emoji="💳"
-            title="Nenhum cartão por aqui"
-            body="Parcelar é o truque mais fácil do mundo: em 3 segundos você divide em 12x e o problema some. O problema não some — vira 12 problemas menores, um por mês, e você esquece de todos até a fatura chegar. Cadastra o cartão que eu te mostro o tamanho real da conta ANTES de você dizer sim."
-            actionLabel="Novo cartão"
-            onAction={openCardSheet}
-          />
+          // Sem cartão não existe fatura nem "Nova compra": aqui o botão é a
+          // ação principal da tela, e é ele que fica com o amarelo.
+          <View style={styles.empty}>
+            <AppText variant="heading">Nenhum cartão por aqui</AppText>
+            <AppText variant="small" tone="secondary">
+              Parcelar em 12x não faz o problema sumir. Faz virar 12.
+            </AppText>
+            <Button label="Novo cartão" icon="add" onPress={openCardSheet} size="lg" full />
+          </View>
         ) : (
           <>
-            <View style={styles.section}>
-              <SectionHeader title="Seus cartões" />
+            <View>
+              <SectionHeader
+                title="Seus cartões"
+                actionLabel="Novo cartão"
+                onAction={openCardSheet}
+                first
+              />
 
-              <View style={styles.cardList}>
+              <View style={styles.list}>
                 {activeCards.map((card) => {
                   const color = seriesColor(scheme, card.colorIndex);
                   const isSelected = selected !== null && selected.id === card.id;
@@ -279,16 +327,23 @@ export default function CartaoScreen() {
                       accessibilityLabel={`${card.nickname}, fecha dia ${card.closingDay}, vence dia ${card.dueDay}, ${formatCents(cardMonthCents)} neste mês`}
                       style={({ pressed }) => [pressed && styles.pressed]}
                     >
+                      {/*
+                        O anel do cartão em foco usa a COR DE IDENTIDADE dele
+                        (o slot de série que ele ganhou ao nascer), nunca o
+                        amarelo: amarelo nesta tela é do botão. Cor de identidade
+                        também não é status — ela não diz que algo está bom ou
+                        ruim, só qual cartão é qual.
+                      */}
                       <Card style={isSelected ? { borderColor: color, borderWidth: 2 } : undefined}>
                         <View style={styles.cardRow}>
-                          <View style={[styles.swatch, { backgroundColor: color }]} />
+                          <Icon name="card" tone={isSelected ? 'primary' : 'muted'} />
 
                           <View style={styles.cardBody}>
                             <AppText variant="subheading" numberOfLines={1}>
                               {card.nickname}
                             </AppText>
-                            <AppText variant="small" tone="secondary" numberOfLines={1}>
-                              fecha dia {card.closingDay}, vence dia {card.dueDay}
+                            <AppText variant="caption" tone="muted" numberOfLines={1}>
+                              {`fecha ${card.closingDay} · vence ${card.dueDay}`}
                             </AppText>
                           </View>
 
@@ -309,127 +364,109 @@ export default function CartaoScreen() {
                   );
                 })}
               </View>
-
-              <Button
-                label="Novo cartão"
-                icon="+"
-                variant="secondary"
-                onPress={openCardSheet}
-                full
-              />
             </View>
 
             {selected !== null ? (
               <>
-                <View style={styles.section}>
-                  <SectionHeader title={`Fatura de ${formatMonthLong(month)}`} />
+                {/* O número que a pessoa abriu esta aba pra ver. Um por tela. */}
+                <View style={styles.fatura}>
+                  <HeroFigure
+                    cents={faturaCents}
+                    label={`Fatura de ${formatMonthLong(month)}`}
+                    caption={`${selected.nickname} · vence dia ${selected.dueDay}`}
+                    // Fatura é dinheiro saindo. `auto` pintaria de verde por ser
+                    // positivo — o verde comemoraria a conta.
+                    tone="neutral"
+                  />
 
-                  <Card style={styles.stack}>
-                    <View style={styles.faturaHead}>
-                      <View style={styles.faturaLabel}>
-                        <AppText variant="small" tone="secondary" numberOfLines={1}>
-                          {selected.nickname}
-                        </AppText>
-                        <AppText variant="caption" tone="muted">
-                          vence dia {selected.dueDay}
-                        </AppText>
-                      </View>
-                      <MoneyText cents={faturaCents} variant="title" tone="neutral" />
-                    </View>
-
-                    {selectedLimitCents !== null ? (
-                      <View style={styles.meterBlock}>
-                        <Meter
-                          progress={limitUsage}
-                          label="Parcelas do mês x limite"
-                          tone={limitUsage > LIMIT_ALERT ? 'critical' : 'brand'}
-                          caption={`${formatCents(faturaCents)} de ${formatCents(selectedLimitCents)}.`}
-                        />
+                  {selectedLimitCents !== null ? (
+                    <View>
+                      <Meter
+                        progress={limitUsage}
+                        label="Parcelas do mês x limite"
+                        tone={limitUsage > LIMIT_ALERT ? 'critical' : 'brand'}
+                        caption={`${formatCents(faturaCents)} de ${formatCents(selectedLimitCents)}`}
+                      />
+                      <Reveal label="O que entra nessa conta?">
                         <AppText variant="small" tone="secondary">
-                          Isto é só o que as parcelas DESTE mês ocupam do limite — não é o seu
-                          limite disponível de verdade. Eu não falo com o seu banco: compra à
-                          vista, anuidade e tudo que você ainda não cadastrou aqui não entram nesta
-                          conta. Quem sabe o número real é o app do banco.
+                          Isto é só o que as parcelas DESTE mês ocupam do limite — não é o seu limite
+                          disponível de verdade. Eu não falo com o seu banco: compra à vista,
+                          anuidade e tudo que você ainda não cadastrou aqui não entram nesta conta.
+                          Quem sabe o número real é o app do banco.
                         </AppText>
-                      </View>
-                    ) : null}
+                      </Reveal>
+                    </View>
+                  ) : null}
 
-                    <View style={[styles.divider, { backgroundColor: colors.hairline }]} />
+                  {/* O único amarelo da tela. */}
+                  <Button label="Nova compra" icon="add" onPress={openPurchaseSheet} size="lg" full />
+                </View>
 
-                    {monthInstallments.length === 0 ? (
-                      <AppText variant="small" tone="secondary">
-                        Nenhuma parcela caindo em {formatMonthLong(month)}. Fatura limpa. Aproveita
-                        a sensação — e, se for parcelar alguma coisa, passa aqui antes de assinar.
-                      </AppText>
-                    ) : (
-                      <View>
-                        {monthInstallments.map(({ purchase, installmentNumber, amountCents }) => (
-                          <ListRow
-                            key={purchase.id}
-                            title={purchase.description}
-                            subtitle={
-                              purchase.installments === 1
-                                ? 'à vista'
-                                : `parcela ${installmentNumber} de ${purchase.installments}`
-                            }
-                            trailing={<MoneyText cents={amountCents} tone="neutral" tabular />}
-                          />
-                        ))}
-                      </View>
-                    )}
+                <View>
+                  <SectionHeader title="Parcelas" first />
 
-                    <Button label="Nova compra" icon="+" onPress={openPurchaseSheet} full />
-                  </Card>
+                  {monthInstallments.length === 0 ? (
+                    <AppText variant="small" tone="secondary">
+                      {`Nenhuma parcela em ${formatMonthLong(month)}.`}
+                    </AppText>
+                  ) : (
+                    <View>
+                      {monthInstallments.map(({ purchase, installmentNumber, amountCents }) => (
+                        <ListRow
+                          key={purchase.id}
+                          title={purchase.description}
+                          subtitle={
+                            purchase.installments === 1
+                              ? 'à vista'
+                              : `${installmentNumber} de ${purchase.installments}`
+                          }
+                          trailing={<MoneyText cents={amountCents} tone="neutral" tabular />}
+                        />
+                      ))}
+                    </View>
+                  )}
                 </View>
 
                 {timelineMax > 0 ? (
-                  <View style={styles.section}>
-                    <SectionHeader title="Próximos 6 meses" />
+                  <View>
+                    <SectionHeader title="Próximos 6 meses" first />
 
-                    <Card style={styles.stack}>
-                      <AppText variant="small" tone="secondary">
-                        As parcelas do {selected.nickname} que já estão contratadas. Cada barra é um
-                        mês que já tem dono antes de você acordar.
-                      </AppText>
+                    <View style={styles.timeline}>
+                      {timeline.map(({ key, cents }) => (
+                        <View
+                          key={key}
+                          accessible
+                          accessibilityLabel={`${formatMonthLong(key)}: ${formatCents(cents)}`}
+                          style={styles.timelineRow}
+                        >
+                          <AppText variant="caption" tone="muted" style={styles.timelineLabel}>
+                            {formatMonthShort(key)}
+                          </AppText>
 
-                      <View style={styles.timeline}>
-                        {timeline.map(({ key, cents }) => (
                           <View
-                            key={key}
-                            accessible
-                            accessibilityLabel={`${formatMonthLong(key)}: ${formatCents(cents)}`}
-                            style={styles.timelineRow}
+                            style={[styles.timelineTrack, { backgroundColor: colors.surfaceSunken }]}
                           >
-                            <AppText variant="caption" tone="secondary" style={styles.timelineLabel}>
-                              {formatMonthShort(key)}
-                            </AppText>
-
+                            {/* A largura mínima existe porque parcela pequena com
+                                0,4% de barra some da tela — e "sumiu" lê-se como
+                                zero, que é outro fato. */}
                             <View
-                              style={[styles.timelineTrack, { backgroundColor: colors.surfaceSunken }]}
-                            >
-                              {/* Magnitude, não identidade: uma cor só para os seis meses. Slot
-                                  de série aqui faria o olho ler cada mês como uma categoria
-                                  diferente. A largura mínima existe porque parcela pequena com
-                                  0,4% de barra some da tela e "sumiu" lê-se como zero. */}
-                              <View
-                                style={[
-                                  styles.timelineFill,
-                                  cents > 0 && styles.timelineFillVisible,
-                                  {
-                                    width: `${Math.round(ratio(cents, timelineMax) * 1000) / 10}%`,
-                                    backgroundColor: colors.brand.amber,
-                                  },
-                                ]}
-                              />
-                            </View>
-
-                            <View style={styles.timelineValue}>
-                              <MoneyText cents={cents} variant="caption" tone="neutral" tabular />
-                            </View>
+                              style={[
+                                styles.timelineFill,
+                                cents > 0 && styles.timelineFillVisible,
+                                {
+                                  width: `${Math.round(ratio(cents, timelineMax) * 1000) / 10}%`,
+                                  backgroundColor: timelineColor,
+                                },
+                              ]}
+                            />
                           </View>
-                        ))}
-                      </View>
-                    </Card>
+
+                          <View style={styles.timelineValue}>
+                            <MoneyText cents={cents} variant="caption" tone="neutral" tabular />
+                          </View>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                 ) : null}
               </>
@@ -445,7 +482,7 @@ export default function CartaoScreen() {
           onChangeText={setNickname}
           placeholder="Nubank roxo"
           maxLength={40}
-          hint="Um apelido que VOCÊ reconheça. Nada de número: apelido mesmo."
+          hint="Um apelido que você reconheça. Nada de número."
           autoFocus
         />
 
@@ -453,21 +490,16 @@ export default function CartaoScreen() {
           label="Fecha dia"
           value={closingDay}
           onChange={setClosingDay}
-          hint="O dia em que a fatura fecha. Compra feita depois disso já cai na fatura do mês seguinte."
+          hint="Compra depois desse dia cai na fatura seguinte."
         />
 
-        <DayField
-          label="Vence dia"
-          value={dueDay}
-          onChange={setDueDay}
-          hint="O dia de pagar."
-        />
+        <DayField label="Vence dia" value={dueDay} onChange={setDueDay} hint="O dia de pagar." />
 
         <CurrencyField
           label="Limite (opcional)"
           cents={limitCents}
           onChangeCents={setLimitCents}
-          hint="Só serve pra eu avisar quando as parcelas do mês estiverem encostando nele. Pode deixar zerado."
+          hint="Só pra eu avisar quando as parcelas encostarem nele."
         />
 
         {saveError !== null ? (
@@ -476,13 +508,7 @@ export default function CartaoScreen() {
           </AppText>
         ) : null}
 
-        <Button
-          label="Salvar cartão"
-          onPress={saveCard}
-          disabled={!cardValid}
-          size="lg"
-          full
-        />
+        <Button label="Salvar cartão" onPress={saveCard} disabled={!cardValid} size="lg" full />
       </Sheet>
 
       <Sheet visible={purchaseSheet} onClose={() => setPurchaseSheet(false)} title="Nova compra">
@@ -501,7 +527,6 @@ export default function CartaoScreen() {
               <Chip
                 key={item.key}
                 label={item.label}
-                icon={item.icon}
                 selected={category === item.key}
                 onPress={() => setCategory(item.key)}
               />
@@ -542,50 +567,42 @@ export default function CartaoScreen() {
           </View>
         </Field>
 
-        {/* O momento em que esta tela mais serve pra alguma coisa: a conta na cara
-            da pessoa enquanto ela ainda pode dizer não. */}
-        <Card tone="brand">
-          <View style={styles.preview}>
-            {totalCents <= 0 ? (
-              <AppText variant="body">
-                Digita o valor que eu faço a conta. É de graça, e agora dói bem menos do que na
-                fatura.
+        {/*
+          O melhor momento do app: a conta na cara da pessoa enquanto ela ainda
+          pode dizer não. O número faz esse trabalho sozinho — o sermão que vinha
+          embaixo dele ("não estou dizendo pra não comprar, mas...") só dava à
+          pessoa alguém pra discutir. Sem card amarelo aqui: o amarelo já está no
+          botão que salva.
+        */}
+        <View style={styles.preview}>
+          {totalCents <= 0 ? (
+            <AppText variant="small" tone="muted">
+              Digita o valor que eu faço a conta.
+            </AppText>
+          ) : installments === 1 ? (
+            <>
+              <AppText variant="title">{`${formatCents(totalCents)} à vista`}</AppText>
+              <AppText variant="small" tone="muted">
+                {`Cai na fatura de ${formatMonthLong(firstMonth)}.`}
               </AppText>
-            ) : installments === 1 ? (
-              <>
-                <AppText variant="title">{formatCents(totalCents)} à vista</AppText>
-                <AppText variant="body">
-                  Cai inteiro na fatura de {formatMonthLong(firstMonth)} e acabou. Nenhum rastro
-                  nos meses seguintes.
-                </AppText>
-              </>
-            ) : (
-              <>
-                <AppText variant="title">
-                  {installments}x de {formatCents(firstParcel)}
-                </AppText>
+            </>
+          ) : (
+            <>
+              <AppText variant="title">{`${installments}x de ${formatCents(firstParcel)}`}</AppText>
+              <AppText variant="small" tone="muted">
+                {`Compromete até ${formatMonthLong(lastMonth)}.`}
+              </AppText>
 
-                {otherParcel !== undefined && otherParcel !== firstParcel ? (
-                  <AppText variant="small">
-                    A 1ª sai por {formatCents(firstParcel)} porque absorve o arredondamento; as
-                    outras {installments - 1} ficam em {formatCents(otherParcel)}. Somadas, dão
-                    exatamente {formatCents(totalCents)}.
+              {otherParcel !== undefined && otherParcel !== firstParcel ? (
+                <Reveal label="Por que a 1ª é diferente?">
+                  <AppText variant="small" tone="secondary">
+                    {`A 1ª sai por ${formatCents(firstParcel)} porque absorve o arredondamento; as outras ${installments - 1} ficam em ${formatCents(otherParcel)}. Somadas, dão exatamente ${formatCents(totalCents)}.`}
                   </AppText>
-                ) : null}
-
-                <AppText variant="bodyStrong">
-                  Isso te acompanha por {humanizeMonths(installments)}: a última parcela cai em{' '}
-                  {formatMonthLong(lastMonth)}.
-                </AppText>
-
-                <AppText variant="small">
-                  Não estou dizendo pra não comprar. Estou dizendo pra olhar{' '}
-                  {formatMonthLong(lastMonth)} e ter certeza de que você quer esse boleto lá.
-                </AppText>
-              </>
-            )}
-          </View>
-        </Card>
+                </Reveal>
+              ) : null}
+            </>
+          )}
+        </View>
 
         {saveError !== null ? (
           <AppText variant="small" tone="negative">
@@ -606,43 +623,31 @@ export default function CartaoScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { gap: spacing.xl },
-  section: { gap: spacing.md },
-  stack: { gap: spacing.md },
+  page: { gap: spacing.section },
+  head: { gap: spacing.md },
+  list: { gap: spacing.md },
+  fatura: { gap: spacing.lg },
+  empty: { gap: spacing.md, paddingTop: spacing.xl },
 
-  notice: { gap: spacing.sm },
-
-  cardList: { gap: spacing.md },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   cardBody: { flex: 1, gap: spacing.xs / 2 },
   cardTrailing: { alignItems: 'flex-end' },
-  swatch: { width: 6, height: 40, borderRadius: radius.dataEnd },
-
-  faturaHead: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  faturaLabel: { flexShrink: 1, gap: spacing.xs / 2 },
-  meterBlock: { gap: spacing.sm },
-  divider: { height: StyleSheet.hairlineWidth },
 
   timeline: { gap: spacing.sm },
-  timelineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  timelineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   timelineLabel: { width: 40 },
   timelineTrack: {
     flex: 1,
-    height: 10,
+    height: 6,
     borderRadius: radius.dataEnd,
     overflow: 'hidden',
     flexDirection: 'row',
   },
   timelineFill: { borderRadius: radius.dataEnd },
   timelineFillVisible: { minWidth: 3 },
-  timelineValue: { width: 96, alignItems: 'flex-end' },
+  timelineValue: { width: 88, alignItems: 'flex-end' },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  preview: { gap: spacing.sm },
+  preview: { gap: spacing.xs },
   pressed: { opacity: 0.65 },
 });

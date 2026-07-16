@@ -73,7 +73,10 @@ export function Avatar({ name, photoUri, emoji = '🙂', size = 40 }: AvatarProp
         style={{
           fontSize: Math.round(size * (glyph ? 0.46 : 0.4)),
           lineHeight: Math.round(size * 0.58),
-          fontWeight: '700',
+          // 600, não 700: num avatar de 96px isto vira um glifo de ~44px, e a
+          // escala manda o hero (40px) em 600. Peso maior que o do número
+          // principal da tela inverteria a hierarquia por acidente.
+          fontWeight: '600',
           color: palette.light.ink.primary,
         }}
       >

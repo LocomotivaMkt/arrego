@@ -18,6 +18,12 @@ const DAYS = Array.from({ length: 31 }, (_, index) => index + 1);
  * completa e aqui só existe o dia — a pessoa escolheria "5 de julho de 2026"
  * para dizer "todo dia 5". Tocar no dia já escolhido limpa a escolha; é o
  * único caminho de volta para `null`.
+ *
+ * SELEÇÃO NÃO É AMARELO (mesma regra de Chip e SegmentedControl). O dia
+ * escolhido era uma pastilha amarela, e como fechamento e vencimento são
+ * obrigatórios, a folha "Novo cartão" nascia com dois amarelos + o botão. Aqui
+ * o selecionado vira tinta cheia: fundo `ink.primary`, número `ink.inverse`.
+ * Alto contraste, inequívoco, e não gasta a cor da marca.
  */
 export function DayField({ label, value, onChange, hint }: DayFieldProps) {
   const { colors } = useTheme();
@@ -38,15 +44,18 @@ export function DayField({ label, value, onChange, hint }: DayFieldProps) {
               style={({ pressed }) => [
                 styles.day,
                 {
-                  backgroundColor: selected ? colors.brand.amber : colors.surfaceSunken,
-                  borderColor: selected ? colors.brand.amberDeep : colors.border,
+                  backgroundColor: selected ? colors.ink.primary : colors.surfaceSunken,
+                  borderColor: selected ? colors.ink.primary : colors.border,
                 },
                 pressed && styles.pressed,
               ]}
             >
               <AppText
                 variant="small"
-                style={[styles.number, { color: selected ? colors.ink.onBrand : colors.ink.secondary }]}
+                style={[
+                  styles.number,
+                  { color: selected ? colors.ink.inverse : colors.ink.secondary },
+                ]}
               >
                 {day}
               </AppText>
@@ -72,6 +81,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  number: { fontWeight: '700' },
+  number: { fontWeight: '600' },
   pressed: { opacity: 0.65 },
 });

@@ -31,6 +31,9 @@ export type { FieldProps } from './Field';
 export { HeroFigure } from './HeroFigure';
 export type { HeroFigureProps } from './HeroFigure';
 
+export { Icon, ICONS } from './Icon';
+export type { IconName, IconProps } from './Icon';
+
 export { Legend } from './Legend';
 export type { LegendProps } from './Legend';
 
@@ -42,6 +45,12 @@ export type { MeterProps, MeterTone } from './Meter';
 
 export { MoneyText } from './MoneyText';
 export type { MoneyTextProps, MoneyTone } from './MoneyText';
+
+export { Reveal } from './Reveal';
+export type { RevealProps } from './Reveal';
+
+export { Row } from './Row';
+export type { RowProps } from './Row';
 
 export { Screen } from './Screen';
 export type { ScreenProps } from './Screen';

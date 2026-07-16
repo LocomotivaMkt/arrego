@@ -35,19 +35,27 @@ export function Chip({
 }: ChipProps) {
   const { colors } = useTheme();
 
+  // SELEÇÃO NÃO É AMARELO — e este componente foi a origem do problema.
+  //
+  // O chip marcado era `brand.amber`. Como toda folha do app tem dois ou três
+  // grupos de chips com um default sempre marcado, cada formulário nascia com
+  // três pílulas amarelas + o botão amarelo: quatro superfícies de marca
+  // apontando pra lados diferentes, que é literalmente a estética que fez o
+  // dono dizer "parece um golpe". A REGRA DO AMARELO (tokens.ts) põe estado
+  // ativo na ÚLTIMA precedência, atrás do botão da ação principal.
+  //
+  // Marcado agora é tinta cheia: fundo `ink.primary` com rótulo `ink.inverse`.
   const surface = [
     styles.root,
     {
-      backgroundColor: selected ? colors.brand.amber : colors.surfaceSunken,
-      borderColor: selected ? colors.brand.amberDeep : colors.border,
+      backgroundColor: selected ? colors.ink.primary : colors.surfaceSunken,
+      borderColor: selected ? colors.ink.primary : colors.border,
     },
   ];
 
-  // Ícone e rótulo compartilham a tinta. Deixar o ícone sem cor o joga em
-  // ink.primary, que no tema escuro é branco — e o chip selecionado tem fundo
-  // amarelo. Hoje todos os ícones são emoji (que ignoram `color`) e o problema
-  // não aparece; o primeiro chip com um glifo de texto o acenderia.
-  const ink = selected ? colors.ink.onBrand : colors.ink.secondary;
+  // Ícone e rótulo compartilham a tinta: sem isso o ícone cai no default
+  // (ink.primary) e some sobre o fundo escuro do chip selecionado.
+  const ink = selected ? colors.ink.inverse : colors.ink.secondary;
 
   const content = (
     <>

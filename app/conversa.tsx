@@ -7,12 +7,17 @@
  * NÚMEROS REAIS dela — o que é mais esperto que um chat ruim e nunca inventa dado.
  *
  * Toda resposta é uma função PURA daqui de baixo: recebe o retrato do mês e
- * devolve `string[]` (uma bolha por item). Nada de I/O, nada de estado —
+ * devolve `Bubble[]` (uma bolha por item). Nada de I/O, nada de estado —
  * o que a torna testável e impede que uma fala nasça de um número que não existe.
  *
  * Regra que atravessa o arquivo: SEM DADO, SEM NÚMERO. Quando falta a renda,
  * falta a régua — e sem régua "R$ 200 é muito?" não tem resposta honesta. Nesses
  * casos ela diz o que falta em vez de chutar uma porcentagem.
+ *
+ * Esta é uma das duas telas onde parágrafo pode existir, e é O lugar da Arrego
+ * falar: aqui ela usa as falas LONGAS (`LINES`), não as curtas. Nas outras telas
+ * ela tem uma linha; aqui ela tem a boca inteira, porque quem abriu a conversa
+ * veio buscar exatamente isso.
  */
 
 import { router, Stack } from 'expo-router';
@@ -56,7 +61,7 @@ import type {
   MonthlySnapshot,
   Profile,
 } from '@/types/models';
-import { AppText, Button, Card, Chip, CurrencyField, InkSurface, Screen, Sheet } from '@/ui';
+import { AppText, Button, Card, Chip, CurrencyField, Icon, Screen, Sheet } from '@/ui';
 import { formatMonthLong, humanizeMonths } from '@/utils/date';
 import { newId } from '@/utils/id';
 import { formatCents, formatPercent, ratio } from '@/utils/money';
@@ -233,6 +238,39 @@ const BANKS = {
 
 /* ─────────────────────── Montagem das respostas ───────────────────── */
 
+/**
+ * Uma linha da mini-tabela: rótulo cinza à esquerda, valor à direita.
+ *
+ * Antes isto era uma string com "· " na frente e um `\n` no meio. Parecia o que
+ * era: um parágrafo fingindo ser dado. Rótulo e valor separados viram tabela —
+ * a pessoa varre a coluna da direita e acha o número sem ler frase nenhuma.
+ */
+type Fact = {
+  label: string;
+  value: string;
+  /** Segunda linha à direita, discreta: o "(32% do que sai)" que antes ia colado no valor. */
+  hint?: string;
+  /** Sinal da conta, quando a tabela é uma soma de verdade. */
+  op?: string;
+  /** Linha de resultado: fio acima, pra separar o que entrou do que sobrou. */
+  total?: boolean;
+};
+
+/**
+ * O que cabe numa bolha da Arrego. Tudo opcional: bolha só de fala é o caso
+ * comum, bolha com tabela é quando ela está mostrando a conta.
+ */
+type Bubble = {
+  /** Cabeçalho da bolha ("Junho de 2026, sem enfeite"). */
+  title?: string;
+  facts?: readonly Fact[];
+  /** Os parágrafos dela, um por bloco. */
+  notes?: readonly string[];
+};
+
+/** Bolha de fala pura — o caso mais comum, e o que ela mais faz. */
+const say = (text: string): Bubble => ({ notes: [text] });
+
 /** Tudo que uma resposta precisa saber. Nenhuma delas lê a store direto. */
 type Answer = {
   data: FinancialData;
@@ -288,15 +326,15 @@ function nothingRegistered(data: FinancialData): boolean {
  * "cadastrou, mas nada caiu neste mês". Usar a mesma fala nos dois faria o app
  * dizer "renda cadastrada: nenhuma" para quem tem — mentira pequena, mas mentira.
  */
-function incomeGuard(answer: Answer, seed: number): string[] | null {
+function incomeGuard(answer: Answer, seed: number): Bubble[] | null {
   const nome = nameOf(answer);
   const hasIncome = answer.data.incomes.some((income) => income.archivedAt === null);
 
-  if (!hasIncome) return [line(LINES.noIncome, seed, { nome })];
+  if (!hasIncome) return [say(line(LINES.noIncome, seed, { nome }))];
 
   if (answer.snapshot.incomeTotalCents <= 0) {
     return [
-      line(BANKS.noIncomeThisMonth, seed, { nome, mes: formatMonthLong(answer.month) }),
+      say(line(BANKS.noIncomeThisMonth, seed, { nome, mes: formatMonthLong(answer.month) })),
     ];
   }
 
@@ -304,7 +342,7 @@ function incomeGuard(answer: Answer, seed: number): string[] | null {
 }
 
 /** "Como eu tô esse mês?" — os números crus, depois o comentário. */
-function answerMonth(answer: Answer, seed: number): string[] {
+function answerMonth(answer: Answer, seed: number): Bubble[] {
   const blocked = incomeGuard(answer, seed);
   if (blocked) return blocked;
 
@@ -312,13 +350,6 @@ function answerMonth(answer: Answer, seed: number): string[] {
   const nome = nameOf(answer);
   const free = snapshot.freeCents;
   const rate = snapshot.savingsRate;
-
-  const facts = [
-    `${formatMonthLong(answer.month)}, sem enfeite:`,
-    `· Entrou: ${formatCents(snapshot.incomeTotalCents)}`,
-    `· Já tem dono: ${formatCents(snapshot.committedCents)}`,
-    `· Sobra: ${formatCents(free)} (${formatPercent(rate)} da renda)`,
-  ].join('\n');
 
   const comment =
     free < 0
@@ -343,36 +374,54 @@ function answerMonth(answer: Answer, seed: number): string[] {
                 pct: formatPercent(rate),
               });
 
-  return [facts, comment];
+  return [
+    {
+      title: `${formatMonthLong(answer.month)}, sem enfeite`,
+      facts: [
+        { label: 'Entrou', value: formatCents(snapshot.incomeTotalCents) },
+        { label: 'Já tem dono', value: formatCents(snapshot.committedCents) },
+        {
+          label: 'Sobra',
+          value: formatCents(free),
+          hint: `${formatPercent(rate)} da renda`,
+        },
+      ],
+    },
+    say(comment),
+  ];
 }
 
 /** "Onde meu dinheiro tá indo?" — top 3 do mês, com valor e %. */
-function answerWhere(answer: Answer, seed: number): string[] {
+function answerWhere(answer: Answer, seed: number): Bubble[] {
   const nome = nameOf(answer);
   const mes = formatMonthLong(answer.month);
   const slices = expenseBreakdown(answer.data, answer.month);
 
   // A maior fatia é o assunto da fala; sem ela não há fatia nenhuma.
   const biggest = slices[0];
-  if (biggest === undefined) return [line(BANKS.noExpenses, seed, { nome, mes })];
+  if (biggest === undefined) return [say(line(BANKS.noExpenses, seed, { nome, mes }))];
 
   const top = slices.slice(0, 3);
-  const facts = [
-    `Top ${top.length} de ${mes}:`,
-    ...top.map(
-      (slice, index) =>
-        `${index + 1}. ${slice.label} — ${formatCents(slice.amountCents)} (${formatPercent(slice.share)} do que sai)`,
-    ),
-  ].join('\n');
 
   return [
-    facts,
-    line(BANKS.whereMoney, seed, {
-      nome,
-      maior: biggest.label,
-      valor: formatCents(biggest.amountCents),
-      pct: formatPercent(biggest.share),
-    }),
+    {
+      title: `Top ${top.length} de ${mes}`,
+      facts: top.map(
+        (slice, index): Fact => ({
+          label: `${index + 1}. ${slice.label}`,
+          value: formatCents(slice.amountCents),
+          hint: `${formatPercent(slice.share)} do que sai`,
+        }),
+      ),
+    },
+    say(
+      line(BANKS.whereMoney, seed, {
+        nome,
+        maior: biggest.label,
+        valor: formatCents(biggest.amountCents),
+        pct: formatPercent(biggest.share),
+      }),
+    ),
   ];
 }
 
@@ -381,11 +430,11 @@ function answerWhere(answer: Answer, seed: number): string[] {
  * O que sobra DEPOIS das metas é o único dinheiro que é de verdade livre;
  * medir pela sobra bruta aprovaria compras que roubam da meta em silêncio.
  */
-function answerBuy(answer: Answer, priceCents: Cents, seed: number): string[] {
+function answerBuy(answer: Answer, priceCents: Cents, seed: number): Bubble[] {
   // Esta é a única pergunta que não passa por `answerFor` (ela vem da Sheet, com
   // um valor junto), então a porta do app vazio é repetida aqui de propósito.
   if (nothingRegistered(answer.data)) {
-    return [line(LINES.emptyState, seed, { nome: nameOf(answer) })];
+    return [say(line(LINES.emptyState, seed, { nome: nameOf(answer) }))];
   }
 
   const blocked = incomeGuard(answer, seed);
@@ -397,17 +446,19 @@ function answerBuy(answer: Answer, priceCents: Cents, seed: number): string[] {
   const valor = formatCents(priceCents);
   const sobra = formatCents(after);
 
-  const facts = [
-    'A conta é essa:',
-    `· Sobra livre: ${formatCents(snapshot.freeCents)}`,
-    `· Metas com prazo pedem: ${formatCents(snapshot.goalsMonthlyNeedCents)}`,
-    `· Sobra de verdade: ${sobra}`,
-    `· A compra: ${valor}`,
-  ].join('\n');
+  const table: Bubble = {
+    title: 'A conta é essa',
+    facts: [
+      { label: 'Sobra livre', value: formatCents(snapshot.freeCents) },
+      { label: 'Metas com prazo pedem', value: formatCents(snapshot.goalsMonthlyNeedCents) },
+      { label: 'Sobra de verdade', value: sobra },
+      { label: 'A compra', value: valor },
+    ],
+  };
 
   // Sem folga não existe ritmo, e sem ritmo não existe prazo pra juntar.
   if (after <= 0) {
-    return [facts, line(BANKS.cannotAffordNoRoom, seed, { nome, valor, sobra })];
+    return [table, say(line(BANKS.cannotAffordNoRoom, seed, { nome, valor, sobra }))];
   }
 
   if (priceCents > after) {
@@ -417,18 +468,20 @@ function answerBuy(answer: Answer, priceCents: Cents, seed: number): string[] {
     // verdadeiro e continua inútil — e imprimi-lo transformaria a sinceridade
     // da Arrego em crueldade acidental, que é a linha que ela não cruza.
     if (meses > BUY_HORIZON_MONTHS) {
-      return [facts, line(BANKS.cannotAffordNoRoom, seed, { nome, valor, sobra })];
+      return [table, say(line(BANKS.cannotAffordNoRoom, seed, { nome, valor, sobra }))];
     }
 
     return [
-      facts,
-      line(BANKS.cannotAfford, seed, {
-        nome,
-        valor,
-        sobra,
-        falta: formatCents(priceCents - after),
-        tempo: humanizeMonths(meses),
-      }),
+      table,
+      say(
+        line(BANKS.cannotAfford, seed, {
+          nome,
+          valor,
+          sobra,
+          falta: formatCents(priceCents - after),
+          tempo: humanizeMonths(meses),
+        }),
+      ),
     ];
   }
 
@@ -438,17 +491,17 @@ function answerBuy(answer: Answer, priceCents: Cents, seed: number): string[] {
   // mais da metade do que sobra deixa o mês inteiro sem margem pra imprevisto.
   // Multiplicação em vez de divisão pra não sair do centavo inteiro.
   if (priceCents * 2 > after) {
-    return [facts, line(BANKS.canAffordTight, seed, { nome, valor, sobra, resto })];
+    return [table, say(line(BANKS.canAffordTight, seed, { nome, valor, sobra, resto }))];
   }
 
-  return [facts, line(BANKS.canAfford, seed, { nome, valor, sobra, resto })];
+  return [table, say(line(BANKS.canAfford, seed, { nome, valor, sobra, resto }))];
 }
 
 /** "Minhas metas vão dar certo?" — uma bolha por meta, com a projeção real. */
-function answerGoals(answer: Answer, seed: number): string[] {
+function answerGoals(answer: Answer, seed: number): Bubble[] {
   const nome = nameOf(answer);
   const goals = answer.data.goals;
-  if (goals.length === 0) return [line(LINES.noGoals, seed, { nome })];
+  if (goals.length === 0) return [say(line(LINES.noGoals, seed, { nome }))];
 
   const byGoalId = new Map(
     answer.projections.map((projection): [string, GoalProjection] => [
@@ -457,7 +510,7 @@ function answerGoals(answer: Answer, seed: number): string[] {
     ]),
   );
 
-  const bubbles: string[] = [];
+  const bubbles: Bubble[] = [];
 
   // `goals` já vem ordenada com as não batidas primeiro, por prioridade — o
   // corte pega as que mais importam, não as primeiras que apareceram.
@@ -469,7 +522,6 @@ function answerGoals(answer: Answer, seed: number): string[] {
     // O id entra na seed: sem isso, duas metas atrasadas recebem a MESMA frase,
     // uma embaixo da outra, e a personagem desmonta na hora.
     const goalSeed = hashSeed(seed, goal.id);
-    const facts = `${goal.emoji} ${meta}\n${formatCents(projection.savedCents)} de ${formatCents(projection.targetCents)} · ${formatPercent(projection.progress)}`;
 
     let comment: string;
 
@@ -519,13 +571,25 @@ function answerGoals(answer: Answer, seed: number): string[] {
             });
     }
 
-    bubbles.push(`${facts}\n\n${comment}`);
+    bubbles.push({
+      // O emoji da meta É da pessoa: ela escolheu. Emoji escolhido é conteúdo e
+      // fica; emoji de enfeite de interface é que saiu do app inteiro.
+      title: `${goal.emoji} ${meta}`,
+      facts: [
+        { label: 'Guardado', value: formatCents(projection.savedCents) },
+        { label: 'Meta', value: formatCents(projection.targetCents) },
+        { label: 'Progresso', value: formatPercent(projection.progress) },
+      ],
+      notes: [comment],
+    });
   }
 
   const rest = goals.length - MAX_GOALS_IN_ANSWER;
   if (rest > 0) {
     bubbles.push(
-      `Tem mais ${pluralize(rest, 'meta', 'metas')} na sua lista. Uma coisa de cada vez — abre os objetivos pra ver o resto com calma.`,
+      say(
+        `Tem mais ${pluralize(rest, 'meta', 'metas')} na sua lista. Uma coisa de cada vez — abre os objetivos pra ver o resto com calma.`,
+      ),
     );
   }
 
@@ -533,10 +597,10 @@ function answerGoals(answer: Answer, seed: number): string[] {
 }
 
 /** "Minhas assinaturas tá caro?" — quantas, quanto por mês, quanto da renda. */
-function answerSubscriptions(answer: Answer, seed: number): string[] {
+function answerSubscriptions(answer: Answer, seed: number): Bubble[] {
   const nome = nameOf(answer);
   const active = answer.data.subscriptions.filter((sub) => sub.cancelledAt === null);
-  if (active.length === 0) return [line(BANKS.noSubscriptions, seed, { nome })];
+  if (active.length === 0) return [say(line(BANKS.noSubscriptions, seed, { nome }))];
 
   const blocked = incomeGuard(answer, seed);
   if (blocked) return blocked;
@@ -545,34 +609,36 @@ function answerSubscriptions(answer: Answer, seed: number): string[] {
   const share = ratio(monthly, answer.snapshot.incomeTotalCents);
   const qtd = pluralize(active.length, 'assinatura', 'assinaturas');
 
-  const facts = [
-    'Assinaturas, sem drama:',
-    `· ${pluralize(active.length, 'ativa', 'ativas')}`,
-    `· ${formatCents(monthly)} por mês`,
-    `· ${formatPercent(share)} da sua renda`,
-  ].join('\n');
-
   const vars = { nome, qtd, valor: formatCents(monthly), pct: formatPercent(share) };
 
   return [
-    facts,
-    share > SUBSCRIPTION_SHARE_LIMIT
-      ? line(LINES.subscriptionHeavy, seed, vars)
-      : // O total do ano só entra aqui: no banco `subscriptionHeavy` existe uma
-        // fala que se recusa a fazer essa conta de propósito, e imprimi-la ao
-        // lado dela transformaria a piada em bug.
-        // O anual vem do motor, não de `monthly * 12`: o mensal de uma assinatura
-        // anual já é um arredondamento, e multiplicá-lo de volta imprime um
-        // número que a pessoa nunca pagou (R$ 100/ano viraria R$ 99,96/ano).
-        line(BANKS.subscriptionsFine, seed, {
-          ...vars,
-          ano: formatCents(subscriptionsYearlyTotalCents(answer.data.subscriptions)),
-        }),
+    {
+      title: 'Assinaturas, sem drama',
+      facts: [
+        { label: 'Ativas', value: String(active.length) },
+        { label: 'Por mês', value: formatCents(monthly) },
+        { label: 'Da sua renda', value: formatPercent(share) },
+      ],
+    },
+    say(
+      share > SUBSCRIPTION_SHARE_LIMIT
+        ? line(LINES.subscriptionHeavy, seed, vars)
+        : // O total do ano só entra aqui: no banco `subscriptionHeavy` existe uma
+          // fala que se recusa a fazer essa conta de propósito, e imprimi-la ao
+          // lado dela transformaria a piada em bug.
+          // O anual vem do motor, não de `monthly * 12`: o mensal de uma assinatura
+          // anual já é um arredondamento, e multiplicá-lo de volta imprime um
+          // número que a pessoa nunca pagou (R$ 100/ano viraria R$ 99,96/ano).
+          line(BANKS.subscriptionsFine, seed, {
+            ...vars,
+            ano: formatCents(subscriptionsYearlyTotalCents(answer.data.subscriptions)),
+          }),
+    ),
   ];
 }
 
 /** "Quanto eu consigo guardar?" — a conta aberta, linha por linha. */
-function answerSave(answer: Answer, seed: number): string[] {
+function answerSave(answer: Answer, seed: number): Bubble[] {
   const blocked = incomeGuard(answer, seed);
   if (blocked) return blocked;
 
@@ -580,15 +646,6 @@ function answerSave(answer: Answer, seed: number): string[] {
   const nome = nameOf(answer);
   const free = snapshot.freeCents;
   const rate = snapshot.savingsRate;
-
-  const facts = [
-    'Conta aberta, sem letra miúda:',
-    `  ${formatCents(snapshot.incomeTotalCents)}   entra`,
-    `− ${formatCents(snapshot.committedCents)}   contas, assinaturas e parcelas`,
-    `= ${formatCents(free)}   sobra livre`,
-    `− ${formatCents(snapshot.goalsMonthlyNeedCents)}   metas com prazo`,
-    `= ${formatCents(snapshot.afterGoalsCents)}   livre de verdade`,
-  ].join('\n');
 
   const comment =
     free < 0
@@ -619,7 +676,34 @@ function answerSave(answer: Answer, seed: number): string[] {
                   pct: formatPercent(rate),
                 });
 
-  return [facts, comment];
+  return [
+    {
+      title: 'Conta aberta, sem letra miúda',
+      // Os sinais fazem o trabalho que o alinhamento sozinho não faz: sem o − e
+      // o =, cinco valores empilhados são cinco números soltos, não uma conta.
+      facts: [
+        { label: 'Entra', value: formatCents(snapshot.incomeTotalCents) },
+        {
+          op: '−',
+          label: 'Contas, assinaturas e parcelas',
+          value: formatCents(snapshot.committedCents),
+        },
+        { op: '=', label: 'Sobra livre', value: formatCents(free), total: true },
+        {
+          op: '−',
+          label: 'Metas com prazo',
+          value: formatCents(snapshot.goalsMonthlyNeedCents),
+        },
+        {
+          op: '=',
+          label: 'Livre de verdade',
+          value: formatCents(snapshot.afterGoalsCents),
+          total: true,
+        },
+      ],
+    },
+    say(comment),
+  ];
 }
 
 /**
@@ -628,12 +712,14 @@ function answerSave(answer: Answer, seed: number): string[] {
  * perguntas do plano caem aqui — sem sobra não há divisão nem fila, e as duas
  * mereciam a mesma resposta em vez de uma resposta cada.
  */
-function planImpossibleAnswer(answer: Answer, seed: number): string[] {
+function planImpossibleAnswer(answer: Answer, seed: number): Bubble[] {
   return [
-    line(LINES.planImpossible, seed, {
-      nome: nameOf(answer),
-      valor: formatCents(Math.abs(answer.plan.freeCents)),
-    }),
+    say(
+      line(LINES.planImpossible, seed, {
+        nome: nameOf(answer),
+        valor: formatCents(Math.abs(answer.plan.freeCents)),
+      }),
+    ),
   ];
 }
 
@@ -644,7 +730,7 @@ function planImpossibleAnswer(answer: Answer, seed: number): string[] {
  * por quê (inclusive o lazer sair ANTES das metas, que parece erro e não é —
  * ver o cabeçalho de lá). A tela só veste os números com a voz.
  */
-function answerPlan(answer: Answer, seed: number): string[] {
+function answerPlan(answer: Answer, seed: number): Bubble[] {
   const blocked = incomeGuard(answer, seed);
   if (blocked) return blocked;
 
@@ -663,30 +749,46 @@ function answerPlan(answer: Answer, seed: number): string[] {
   // diferentes pro mesmo mês fariam ela chamar de "raspando" aqui e de "ok" ali.
   const freeShare = ratio(plan.freeCents, plan.incomeTotalCents);
 
-  const facts = [
-    `${formatMonthLong(plan.month)}, os três baldes:`,
-    `· Reserva: ${formatCents(plan.reservaCents)}`,
-    `· Objetivos: ${formatCents(plan.objetivosCents)}`,
-    `· Lazer: ${formatCents(plan.lazerCents)}`,
-    `= ${formatCents(plan.freeCents)} · ${formatPercent(savingShare)} da renda guardados, ${formatPercent(lazerShare)} pra viver`,
-  ].join('\n');
-
-  const bubbles = [
-    facts,
-    freeShare < RATE_LOW
-      ? line(LINES.planTight, seed, {
-          nome,
-          valor: formatCents(plan.freeCents),
-          pct: formatPercent(freeShare),
-        })
-      : // `planReady` fala das três fatias na mesma frase, então cada uma tem
-        // nome próprio: um {valor} genérico não diria qual é qual.
-        line(LINES.planReady, seed, {
-          nome,
-          reserva: formatCents(plan.reservaCents),
-          objetivos: formatCents(plan.objetivosCents),
-          lazer: formatCents(plan.lazerCents),
-        }),
+  const bubbles: Bubble[] = [
+    {
+      title: `${formatMonthLong(plan.month)}, os três baldes`,
+      // As duas porcentagens ficam CADA UMA na linha de que elas falam, e as
+      // duas dizem "da renda": soltas, "20% guardados" ao lado de um total de
+      // R$ 600 se lê como 20% dos R$ 600, que é outro número e outra conversa.
+      // `savingShare` é reserva + objetivos, então ela mora na linha do total.
+      facts: [
+        { label: 'Reserva', value: formatCents(plan.reservaCents) },
+        { label: 'Objetivos', value: formatCents(plan.objetivosCents) },
+        {
+          label: 'Lazer',
+          value: formatCents(plan.lazerCents),
+          hint: `${formatPercent(lazerShare)} da renda`,
+        },
+        {
+          op: '=',
+          label: 'Sobra do mês',
+          value: formatCents(plan.freeCents),
+          hint: `${formatPercent(savingShare)} da renda guardados`,
+          total: true,
+        },
+      ],
+    },
+    say(
+      freeShare < RATE_LOW
+        ? line(LINES.planTight, seed, {
+            nome,
+            valor: formatCents(plan.freeCents),
+            pct: formatPercent(freeShare),
+          })
+        : // `planReady` fala das três fatias na mesma frase, então cada uma tem
+          // nome próprio: um {valor} genérico não diria qual é qual.
+          line(LINES.planReady, seed, {
+            nome,
+            reserva: formatCents(plan.reservaCents),
+            objetivos: formatCents(plan.objetivosCents),
+            lazer: formatCents(plan.lazerCents),
+          }),
+    ),
   ];
 
   const { emergency } = plan;
@@ -695,7 +797,7 @@ function answerPlan(answer: Answer, seed: number): string[] {
     // Aqui {valor} é o ALVO da reserva, não um depósito — mesma convenção de
     // `noEmergencyFund`.
     bubbles.push(
-      line(LINES.planNoEmergency, seed, { nome, valor: formatCents(emergency.targetCents) }),
+      say(line(LINES.planNoEmergency, seed, { nome, valor: formatCents(emergency.targetCents) })),
     );
   } else if (!emergency.funded && emergency.monthsToFund !== null) {
     // `monthsToFund` null = a reserva não recebeu nada este mês. Sem ritmo não
@@ -703,11 +805,13 @@ function answerPlan(answer: Answer, seed: number): string[] {
     // em silêncio: aparece na fila de "Qual meta vem primeiro?", que é onde a
     // fala certa pra um zero mora.
     bubbles.push(
-      line(LINES.planEmergencyEta, seed, {
-        nome,
-        valor: formatCents(plan.reservaCents),
-        tempo: humanizeMonths(emergency.monthsToFund),
-      }),
+      say(
+        line(LINES.planEmergencyEta, seed, {
+          nome,
+          valor: formatCents(plan.reservaCents),
+          tempo: humanizeMonths(emergency.monthsToFund),
+        }),
+      ),
     );
   }
 
@@ -715,12 +819,12 @@ function answerPlan(answer: Answer, seed: number): string[] {
 }
 
 /** Uma posição da fila: #rank, quanto recebe este mês, e por que está aí. */
-function priorityFacts(allocation: GoalAllocation): string {
-  return [
-    `#${allocation.rank} ${allocation.emoji} ${allocation.label}`,
-    `${formatCents(allocation.suggestedCents)} este mês`,
-    summarizeReason(allocation.rankReason),
-  ].join('\n');
+function priorityBubble(allocation: GoalAllocation, notes: string[]): Bubble {
+  return {
+    title: `#${allocation.rank} ${allocation.emoji} ${allocation.label}`,
+    facts: [{ label: 'Este mês', value: formatCents(allocation.suggestedCents) }],
+    notes,
+  };
 }
 
 /**
@@ -730,13 +834,13 @@ function priorityFacts(allocation: GoalAllocation): string {
  * vêm de `rankGoals`. Reordenar ou reescrever o porquê na tela faria o app ter
  * duas opiniões sobre a mesma fila, e a pessoa acreditaria na errada.
  */
-function answerPriority(answer: Answer, seed: number): string[] {
+function answerPriority(answer: Answer, seed: number): Bubble[] {
   const nome = nameOf(answer);
   const { plan } = answer;
 
   // Sem meta cadastrada não existe fila. Vem antes do guarda de renda porque
   // "cria a primeira meta" é um passo que independe de saber quanto entra.
-  if (answer.data.goals.length === 0) return [line(LINES.noGoals, seed, { nome })];
+  if (answer.data.goals.length === 0) return [say(line(LINES.noGoals, seed, { nome }))];
 
   const blocked = incomeGuard(answer, seed);
   if (blocked) return blocked;
@@ -753,13 +857,15 @@ function answerPriority(answer: Answer, seed: number): string[] {
   // entra piada nem banco de fala — é a única saída honesta que sobra.
   if (queue.length === 0) {
     return [
-      'Suas metas estão todas fechadas — não sobrou nenhuma pra entrar na fila. Quando aparecer a próxima, cria nos objetivos que eu volto a ordenar.',
+      say(
+        'Suas metas estão todas fechadas — não sobrou nenhuma pra entrar na fila. Quando aparecer a próxima, cria nos objetivos que eu volto a ordenar.',
+      ),
     ];
   }
 
   const bubbles = queue.slice(0, MAX_GOALS_IN_ANSWER).map((allocation) => {
-    const facts = priorityFacts(allocation);
-    if (allocation.suggestedCents > 0) return facts;
+    const reason = summarizeReason(allocation.rankReason);
+    if (allocation.suggestedCents > 0) return priorityBubble(allocation, [reason]);
 
     // R$ 0,00 é o único número da fila que precisa de fala junto: sozinho ele
     // parece castigo, e não é — a sobra acabou antes de chegar nela. O id entra
@@ -769,13 +875,15 @@ function answerPriority(answer: Answer, seed: number): string[] {
       nome,
       meta: allocation.label,
     });
-    return `${facts}\n\n${comment}`;
+    return priorityBubble(allocation, [reason, comment]);
   });
 
   const rest = queue.length - MAX_GOALS_IN_ANSWER;
   if (rest > 0) {
     bubbles.push(
-      `Tem mais ${pluralize(rest, 'meta', 'metas')} na fila, todas depois dessas. Abre os objetivos pra ver a ordem inteira.`,
+      say(
+        `Tem mais ${pluralize(rest, 'meta', 'metas')} na fila, todas depois dessas. Abre os objetivos pra ver a ordem inteira.`,
+      ),
     );
   }
 
@@ -787,15 +895,17 @@ function answerPriority(answer: Answer, seed: number): string[] {
  * Início. A fala já vem escolhida e preenchida por `insights.ts`; repescar
  * aqui faria a mesma dica ter duas versões diferentes no mesmo app.
  */
-function answerTip(answer: Answer, seed: number): string[] {
+function answerTip(answer: Answer, seed: number): Bubble[] {
   const top = answer.top;
-  if (top === null) return [line(LINES.emptyState, seed, { nome: nameOf(answer) })];
-  return top.evidence !== null ? [`${top.title}\n${top.evidence}`, top.body] : [top.body];
+  if (top === null) return [say(line(LINES.emptyState, seed, { nome: nameOf(answer) }))];
+  return top.evidence !== null
+    ? [{ title: top.title, notes: [top.evidence] }, say(top.body)]
+    : [say(top.body)];
 }
 
 /** "Você é sempre assim?" — easter egg. */
-function answerAboutHer(answer: Answer, seed: number): string[] {
-  return [line(BANKS.aboutMe, seed, { nome: nameOf(answer) })];
+function answerAboutHer(answer: Answer, seed: number): Bubble[] {
+  return [say(line(BANKS.aboutMe, seed, { nome: nameOf(answer) }))];
 }
 
 /* ────────────────────────────── Perguntas ─────────────────────────── */
@@ -834,13 +944,13 @@ const QUESTIONS: readonly Question[] = [
   { id: 'sempreAssim', label: 'Você é sempre assim?' },
 ];
 
-function answerFor(id: Exclude<QuestionId, 'comprar'>, answer: Answer, seed: number): string[] {
+function answerFor(id: Exclude<QuestionId, 'comprar'>, answer: Answer, seed: number): Bubble[] {
   // Tela vazia tem exatamente um próximo passo, e ele não é uma análise de
   // nada. O easter egg passa: ele não fala de número nenhum, então não há
   // número pra inventar — e negar a única pergunta que funcionaria seria só
   // ranzinzice.
   if (id !== 'sempreAssim' && nothingRegistered(answer.data)) {
-    return [line(LINES.emptyState, seed, { nome: nameOf(answer) })];
+    return [say(line(LINES.emptyState, seed, { nome: nameOf(answer) }))];
   }
 
   switch (id) {
@@ -867,8 +977,89 @@ function answerFor(id: Exclude<QuestionId, 'comprar'>, answer: Answer, seed: num
 
 /* ──────────────────────────────── Tela ────────────────────────────── */
 
-type Message = { id: string; from: 'arrego' | 'voce'; text: string };
+type Message = { id: string; from: 'arrego' | 'voce'; bubble: Bubble };
 
+/**
+ * A mini-tabela dentro da bolha: rótulo cinza à esquerda, valor à direita.
+ *
+ * O `op` reserva coluna pra TODAS as linhas quando QUALQUER uma tem sinal —
+ * senão as com "−" empurrariam o rótulo pro lado e a tabela ficaria torta na
+ * única hora em que ela precisa parecer uma conta.
+ */
+function FactTable({ facts }: { facts: readonly Fact[] }) {
+  const { colors } = useTheme();
+  const hasOps = facts.some((fact) => fact.op !== undefined);
+
+  return (
+    <View style={styles.table}>
+      {facts.map((fact, index) => (
+        <View key={`${fact.label}-${index}`}>
+          {fact.total === true ? (
+            <View style={[styles.rule, { backgroundColor: colors.hairline }]} />
+          ) : null}
+
+          {/* A linha inteira é UM nó pro leitor de tela: sem isto ele lê
+              "Entrou" … "R$ 3.000,00" como duas coisas sem relação, que é
+              exatamente a parede que a tabela veio desfazer. O sinal fica de
+              fora — quem carrega a conta é o rótulo, não o glifo. */}
+          <View
+            style={styles.factRow}
+            accessible
+            accessibilityLabel={
+              fact.hint === undefined
+                ? `${fact.label}, ${fact.value}`
+                : `${fact.label}, ${fact.value}, ${fact.hint}`
+            }
+          >
+            {hasOps ? (
+              <AppText variant="small" tone="muted" style={styles.op}>
+                {fact.op ?? ' '}
+              </AppText>
+            ) : null}
+
+            <AppText variant="small" tone="secondary" style={styles.factLabel}>
+              {fact.label}
+            </AppText>
+
+            <View style={styles.factValue}>
+              <AppText variant="bodyStrong" style={styles.number}>
+                {fact.value}
+              </AppText>
+              {fact.hint !== undefined ? (
+                <AppText variant="caption" tone="muted" style={styles.hint}>
+                  {fact.hint}
+                </AppText>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function BubbleBody({ bubble }: { bubble: Bubble }) {
+  return (
+    <View style={styles.body}>
+      {bubble.title !== undefined ? <AppText variant="bodyStrong">{bubble.title}</AppText> : null}
+      {bubble.facts !== undefined ? <FactTable facts={bubble.facts} /> : null}
+      {bubble.notes?.map((note, index) => (
+        <AppText key={`${index}-${note.length}`} style={styles.speech}>
+          {note}
+        </AppText>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * A carinha dela. O emoji fica: é a "cara" da personagem, não enfeite de
+ * interface — a mesma régua que mantém o emoji da meta que a pessoa escolheu.
+ *
+ * O disco por baixo é `surfaceSunken`, não amarelo: nesta tela o amarelo é das
+ * bolhas da PESSOA, e um app com amarelo em dois lugares é um app que não sabe
+ * pra onde está apontando.
+ */
 function ArregoAvatar({ hidden }: { hidden: boolean }) {
   const { colors } = useTheme();
 
@@ -877,14 +1068,17 @@ function ArregoAvatar({ hidden }: { hidden: boolean }) {
   if (hidden) return <View style={styles.avatarSlot} />;
 
   return (
-    <InkSurface onBrand>
-      <View style={[styles.avatarSlot, styles.avatar, { backgroundColor: colors.brand.amber }]}>
-        <AppText variant="small">{ARREGO_EMOJI}</AppText>
-      </View>
-    </InkSurface>
+    <View style={[styles.avatarSlot, styles.avatar, { backgroundColor: colors.surfaceSunken }]}>
+      <AppText variant="small">{ARREGO_EMOJI}</AppText>
+    </View>
   );
 }
 
+/**
+ * Três pontinhos, que é o que app de mensagem faz. O texto "Arrego está
+ * digitando…" continua existindo pra quem usa leitor de tela, via
+ * accessibilityLabel — só parou de ocupar a interface de quem enxerga.
+ */
 function TypingBubble() {
   const { colors } = useTheme();
   const pulse = useRef(new Animated.Value(0)).current;
@@ -973,7 +1167,11 @@ export default function ConversaScreen() {
     if (!hydrated || greeted.current) return;
     greeted.current = true;
     setMessages([
-      { id: newId(), from: 'arrego', text: greeting(profile?.name ?? '', hashSeed(month)) },
+      {
+        id: newId(),
+        from: 'arrego',
+        bubble: say(greeting(profile?.name ?? '', hashSeed(month))),
+      },
     ]);
   }, [hydrated, profile, month]);
 
@@ -982,7 +1180,7 @@ export default function ConversaScreen() {
   }, [messages, typing]);
 
   const ask = useCallback(
-    (id: QuestionId, userText: string, build: (seed: number) => string[]) => {
+    (id: QuestionId, userText: string, build: (seed: number) => Bubble[]) => {
       const count = (askCount.current[id] ?? 0) + 1;
       askCount.current[id] = count;
 
@@ -991,15 +1189,15 @@ export default function ConversaScreen() {
       // pergunta, senão ela responderia igualzinho e pareceria travada.
       const seed = hashSeed(month, id, count);
 
-      setMessages((prev) => [...prev, { id: newId(), from: 'voce', text: userText }]);
+      setMessages((prev) => [...prev, { id: newId(), from: 'voce', bubble: say(userText) }]);
       setTyping(true);
 
       const timer = setTimeout(() => {
         timers.current.delete(timer);
-        const texts = build(seed);
+        const bubbles = build(seed);
         setMessages((prev) => [
           ...prev,
-          ...texts.map((text): Message => ({ id: newId(), from: 'arrego', text })),
+          ...bubbles.map((bubble): Message => ({ id: newId(), from: 'arrego', bubble })),
         ]);
         setTyping(false);
       }, TYPING_MS);
@@ -1087,23 +1285,22 @@ export default function ConversaScreen() {
             pressed && styles.pressed,
           ]}
         >
-          <AppText variant="bodyStrong" tone="secondary">
-            ←
-          </AppText>
+          <Icon name="back" tone="secondary" />
         </Pressable>
 
-        <InkSurface onBrand>
-          <View style={[styles.headerAvatar, { backgroundColor: colors.brand.amber }]}>
-            <AppText variant="subheading">{ARREGO_EMOJI}</AppText>
-          </View>
-        </InkSurface>
+        <View style={[styles.headerAvatar, { backgroundColor: colors.surfaceSunken }]}>
+          <AppText variant="subheading">{ARREGO_EMOJI}</AppText>
+        </View>
 
         <View style={styles.headerText}>
           <AppText variant="subheading" numberOfLines={1}>
             Arrego
           </AppText>
+          {/* O "está digitando…" saiu daqui: quem avisa são os pontinhos, lá
+              embaixo, onde a resposta vai nascer. Legenda que troca de texto a
+              cada pergunta é um piscar no canto que ninguém pediu. */}
           <AppText variant="caption" tone="muted" numberOfLines={1}>
-            {typing ? 'está digitando…' : 'sincera até doer um pouquinho'}
+            sincera até doer um pouquinho
           </AppText>
         </View>
       </View>
@@ -1126,13 +1323,13 @@ export default function ConversaScreen() {
               {/* Card tone="brand" reabre o contexto de tinta, então o texto
                   colapsa em ink.onBrand sozinho. Branco sobre o amarelo dá
                   1.58:1 e some — a regra é estrutural, não confia em lembrança. */}
-              <AppText>{message.text}</AppText>
+              <BubbleBody bubble={message.bubble} />
             </Card>
           ) : (
             <View key={message.id} style={styles.rowArrego}>
               <ArregoAvatar hidden={messages[index - 1]?.from === 'arrego'} />
               <Card tone="surface" padded={false} style={[styles.bubble, styles.bubbleArrego]}>
-                <AppText>{message.text}</AppText>
+                <BubbleBody bubble={message.bubble} />
               </Card>
             </View>
           ),
@@ -1195,7 +1392,9 @@ const styles = StyleSheet.create({
   threadScroll: { flex: 1 },
   thread: {
     padding: spacing.lg,
-    gap: spacing.md,
+    // Espaço entre bolhas é o que faz uma conversa parecer calma. Colado, o
+    // mesmo texto vira um bloco só e a pessoa lê tudo como um sermão.
+    gap: spacing.lg,
   },
   rowArrego: {
     flexDirection: 'row',
@@ -1211,9 +1410,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   bubble: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
+  // radius.card (20) vem do Card; o canto de baixo do lado de quem fala encolhe
+  // pra bolha "apontar" pra origem — o gesto que todo app de mensagem faz.
   bubbleArrego: {
     flexShrink: 1,
     borderBottomLeftRadius: radius.sm,
@@ -1222,6 +1423,29 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     maxWidth: '84%',
     borderBottomRightRadius: radius.sm,
+  },
+
+  body: { gap: spacing.md },
+  speech: { lineHeight: 23 },
+
+  table: { gap: spacing.sm },
+  factRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  op: { width: 10, lineHeight: 22 },
+  // lineHeight do valor (22) no rótulo (13/18): sem isso a primeira linha dos
+  // dois não nasce na mesma altura e a tabela inteira fica desencontrada.
+  factLabel: { flex: 1, lineHeight: 22 },
+  factValue: { alignItems: 'flex-end' },
+  // Algarismo de largura fixa: é uma coluna de números, e coluna de número que
+  // não alinha é a diferença entre um extrato e uma lista de compras.
+  number: { fontVariant: ['tabular-nums'] },
+  hint: { textAlign: 'right' },
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginBottom: spacing.sm,
   },
 
   dots: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xs },

@@ -1,10 +1,23 @@
 /**
  * Início — o retrato do mês em uma tela.
  *
- * A tela não faz conta: `useSnapshot`, `useTopInsight` e `useProjections` já
- * entregam tudo mastigado pelo motor, memoizado por identidade dos dados. O que
- * mora aqui é composição e hierarquia — e as armadilhas de cor e de largura que
- * essa composição específica cria, comentadas onde acontecem.
+ * A tela não faz conta: `useSnapshot`, `useTopInsight`, `usePlan` e
+ * `useProjections` já entregam tudo mastigado pelo motor, memoizado por
+ * identidade dos dados. O que mora aqui é composição e hierarquia.
+ *
+ * O QUE MUDOU, E POR QUÊ. Esta tela levou o veredito "parece um golpe" com
+ * ~2.100 caracteres de texto corrido. Nada de informação saiu — o volume saiu:
+ *
+ *   - A saudação de três linhas virou "Oi, {nome}".
+ *   - O card da Arrego (badge + título + corpo + evidência + botão) virou UMA
+ *     linha de lista com o título; o corpo, a evidência e a ação foram para
+ *     dentro de um `Reveal`, fechados por padrão.
+ *   - A KPI row (entrou / comprometido / guardado) foi para trás de
+ *     "Ver a conta" — é a aritmética do número-herói, não o assunto da tela.
+ *   - Os parágrafos do plano foram para /plano, que é a casa deles.
+ *
+ * Um app sério mostra o número e cala a boca. Quem se explica em três
+ * parágrafos é quem está vendendo alguma coisa.
  */
 
 import { router, type Href } from 'expo-router';
@@ -12,8 +25,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { expenseBreakdown } from '@/engine/analysis';
-import { fill, firstName, greeting, hashSeed, LINES, pickLine } from '@/engine/persona';
-import type { MonthlyPlan } from '@/engine/plan';
+import { firstName, hashSeed, shortLine } from '@/engine/persona';
 import {
   useArrego,
   useFinancialData,
@@ -22,26 +34,28 @@ import {
   useSnapshot,
   useTopInsight,
 } from '@/store/useArrego';
-import { HIT_SLOP, MIN_TOUCH, palette, spacing } from '@/theme/tokens';
+import { HIT_SLOP, MIN_TOUCH, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
-import type { CategorySlice, Cents, Goal, GoalProjection, InsightSeverity } from '@/types/models';
-import { addMonths, formatMonthLong, humanizeMonths, monthKeyFromISO, todayISO } from '@/utils/date';
+import type { CategorySlice, Cents, Goal, GoalProjection } from '@/types/models';
+import { addMonths, formatMonthLong, monthKeyFromISO } from '@/utils/date';
 import { formatCents, formatPercent, ratio } from '@/utils/money';
 import {
   AppText,
   Avatar,
-  Badge,
   Button,
   Card,
-  EmptyState,
   HeroFigure,
+  Icon,
   Legend,
+  ListRow,
   Meter,
+  MoneyText,
+  Reveal,
   Screen,
   SectionHeader,
   StackedBar,
-  StatTile,
-  type CardTone,
+  type ButtonVariant,
+  type IconName,
 } from '@/ui';
 
 const ROTA_PERFIL = '/perfil';
@@ -53,6 +67,20 @@ const ROTA_PLANO = '/plano';
 /** Quantas metas cabem no Início antes de a tela virar lista de metas. */
 const METAS_NO_INICIO = 3;
 
+/** Quantas categorias de gasto ganham nome próprio aqui. O resto vira "Outros". */
+const CATEGORIAS_NO_INICIO = 4;
+
+/**
+ * A barra dos três baldes é um FIO, não um gráfico: ela existe pra dar o
+ * formato do mês num relance. Quem quiser o número lê a linha embaixo dela.
+ */
+const BARRA_FINA = 6;
+
+/** Espelha o vão fixo do `leading` do ListRow — a coluna de ícones alinha. */
+const LEADING_SIZE = 40;
+/** Espelha a altura mínima do ListRow: linha de banco respira. */
+const ROW_MIN_HEIGHT = 60;
+
 /**
  * O motor entrega `href` como string — ele não conhece o expo-router — e
  * `typedRoutes` espera `Href`. O cast fica preso aqui, num lugar só: as rotas
@@ -62,52 +90,102 @@ function abrir(href: string): void {
   router.push(href as Href);
 }
 
-/** O rótulo do Badge: a cor nunca carrega o significado sozinha. */
-function rotuloDeSeveridade(severity: InsightSeverity): string {
-  switch (severity) {
-    case 'critical':
-      return 'Urgente';
-    case 'serious':
-      return 'Importante';
-    case 'warning':
-      return 'De olho';
-    case 'good':
-      return 'Boa notícia';
-    case 'neutral':
-      return 'Recado';
-  }
-}
+/** Um balde do plano já com o papel do ícone resolvido no tipo. */
+type Balde = CategorySlice & { icon: IconName };
 
-function legendaDaMeta(projection: GoalProjection): string {
-  const guardado = `${formatCents(projection.savedCents)} de ${formatCents(projection.targetCents)}`;
-  if (projection.progress >= 1) return `${guardado} · meta batida`;
-  // `monthsAtCurrentPace === null` cobre ritmo zero E negativo (quem sacou da
-  // meta). "Sem depósito ainda" mentiria no segundo caso.
-  if (projection.monthsAtCurrentPace === null) {
-    return `${guardado} · sem previsão no ritmo de hoje`;
-  }
-  return `${guardado} · ${humanizeMonths(projection.monthsAtCurrentPace)} no ritmo de hoje`;
+/**
+ * Estado vazio: ícone de LINHA em cinza, título curto, uma frase, um botão.
+ *
+ * O emoji gigante saiu junto com o parágrafo de 180 caracteres. Emoji de
+ * enfeite é ilustração que cada sistema desenha do seu jeito e ignora a cor do
+ * tema — e foi metade da razão de a tela parecer amadora.
+ */
+function Vazio({
+  icon,
+  title,
+  line,
+  actionLabel,
+  onAction,
+  variant = 'ghost',
+}: {
+  icon: IconName;
+  title: string;
+  line: string;
+  actionLabel: string;
+  onAction: () => void;
+  /**
+   * `ghost` por padrão: o amarelo desta tela já é do card da sobra, e um botão
+   * de marca aqui embaixo seria o segundo amarelo. Só o vazio de tela inteira
+   * — onde não existe card nenhum — promove o botão a `primary`.
+   */
+  variant?: ButtonVariant;
+}) {
+  return (
+    <View style={styles.vazio}>
+      <Icon name={icon} size={32} tone="muted" />
+      <AppText variant="subheading" style={styles.centrado}>
+        {title}
+      </AppText>
+      <AppText variant="small" tone="muted" numberOfLines={2} style={styles.centrado}>
+        {line}
+      </AppText>
+      <View style={styles.vazioAcao}>
+        <Button label={actionLabel} onPress={onAction} variant={variant} />
+      </View>
+    </View>
+  );
 }
 
 /**
- * O plano em uma frase. Os dois casos-limite não são preciosismo:
+ * A linha de uma meta. Não é `ListRow` porque o `subtitle` dele é string e aqui
+ * o lugar da legenda é ocupado pelo medidor — a barra diz "quanto falta" mais
+ * rápido do que qualquer frase diria. A geometria é a mesma do ListRow de
+ * propósito: as duas listas da tela têm que alinhar na mesma coluna.
  *
- * - GUARDA ZERO acontece com a reserva cheia e nenhuma meta pendente — aí o
- *   motor manda a sobra inteira para o lazer de propósito. "Guarda R$ 0,00"
- *   soaria como falha num plano que está certo, então a frase vira convite.
- * - LAZER ZERO acontece quando a sobra é tão pequena que 20% dela arredonda
- *   para nada. Prometer "gasta R$ 0,00 sem culpa" seria deboche.
+ * O emoji FICA: quem escolheu foi a pessoa, então ele é conteúdo, não enfeite.
  */
-function resumoDoPlano(plano: MonthlyPlan): string {
-  const guardaCents = plano.reservaCents + plano.objetivosCents;
+function LinhaDaMeta({
+  goal,
+  projection,
+  onPress,
+}: {
+  goal: Goal;
+  projection: GoalProjection;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessible
+      accessibilityRole="button"
+      // O leitor de tela agrupa o Pressable e engole o progressbar do Meter,
+      // então o número inteiro tem que estar aqui.
+      accessibilityLabel={
+        `${goal.label}: ${formatCents(projection.savedCents)} ` +
+        `de ${formatCents(projection.targetCents)}. Toque para ver seus objetivos.`
+      }
+      style={({ pressed }) => [styles.metaRow, pressed && styles.pressed]}
+    >
+      <View style={styles.metaLeading}>
+        <AppText style={styles.metaEmoji}>{goal.emoji}</AppText>
+      </View>
 
-  if (guardaCents === 0) {
-    return `Sem meta pendente, os ${formatCents(plano.lazerCents)} são todos seus. Cria um objetivo e parte disso vira futuro.`;
-  }
-  if (plano.lazerCents === 0) {
-    return `Guarda ${formatCents(guardaCents)}. O que sobra é pequeno demais pra separar lazer sem mentir.`;
-  }
-  return `Guarda ${formatCents(guardaCents)}, gasta ${formatCents(plano.lazerCents)} sem culpa.`;
+      <View style={styles.metaBody}>
+        <AppText variant="bodyStrong" numberOfLines={1}>
+          {goal.label}
+        </AppText>
+        {/*
+          Sem `label` e sem `caption`: o Meter aqui é só o trilho. Meta atrasada
+          não é `critical` — o próprio motor classifica isso como 'warning', e
+          vermelho gritaria mais alto que a Arrego por um motivo menor.
+        */}
+        <Meter progress={projection.progress} tone={projection.progress >= 1 ? 'good' : 'brand'} />
+      </View>
+
+      <MoneyText cents={projection.savedCents} variant="small" tone="neutral" tabular />
+      <Icon name="next" tone="muted" />
+    </Pressable>
+  );
 }
 
 export default function Inicio() {
@@ -139,15 +217,30 @@ export default function Inicio() {
 
   const nome = firstName(profile?.name);
 
-  // `greeting` lê o relógio a cada chamada. O memo prende a frase à sessão para
-  // ela não trocar de "bom dia" para "boa tarde" embaixo do olho de quem está
-  // lendo; a seed do dia mantém a saudação variando de um dia para o outro.
-  const saudacao = useMemo(
-    () => greeting(profile?.name ?? '', hashSeed(todayISO())),
-    [profile?.name],
-  );
-
   const fatias = useMemo(() => expenseBreakdown(data, month), [data, month]);
+
+  /**
+   * Só as maiores ganham nome; o resto vira "Outros" — a convenção dos tokens
+   * ("uma 9ª categoria vira Outros, jamais uma cor nova").
+   *
+   * O balde não é preciosismo: sem ele a barra desenha só uma parte de si e o
+   * vão que sobra lê como dinheiro não gasto. E o corte só acontece quando há
+   * pelo menos DUAS categorias pra agrupar — colapsar uma só apagaria o nome
+   * dela pra não mostrar nada em troca.
+   */
+  const fatiasVisiveis = useMemo<CategorySlice[]>(() => {
+    if (fatias.length <= CATEGORIAS_NO_INICIO + 1) return fatias;
+    const resto = fatias.slice(CATEGORIAS_NO_INICIO);
+    return [
+      ...fatias.slice(0, CATEGORIAS_NO_INICIO),
+      {
+        key: 'outros',
+        label: 'Outros',
+        amountCents: resto.reduce((total, fatia) => total + fatia.amountCents, 0),
+        share: resto.reduce((total, fatia) => total + fatia.share, 0),
+      },
+    ];
+  }, [fatias]);
 
   // Os três baldes viram fatias de gráfico. Os centavos saem prontos do motor —
   // aqui só se calcula `share`, e contra `freeCents` porque é exatamente isso
@@ -156,25 +249,27 @@ export default function Inicio() {
   //
   // O balde zerado FICA na lista (a reserva cheia vale R$ 0). A StackedBar não
   // desenha fatia sem área, mas colore pelo índice na lista ORIGINAL — tirar o
-  // zero daqui deslocaria a cor de todo mundo depois dele e a Legend passaria a
-  // apontar para o segmento errado.
-  const baldes = useMemo<CategorySlice[]>(
+  // zero daqui deslocaria a cor de todo mundo depois dele.
+  const baldes = useMemo<Balde[]>(
     () => [
       {
         key: 'reserva',
         label: 'Reserva',
+        icon: 'shield',
         amountCents: plano.reservaCents,
         share: ratio(plano.reservaCents, plano.freeCents),
       },
       {
         key: 'objetivos',
         label: 'Objetivos',
+        icon: 'target',
         amountCents: plano.objetivosCents,
         share: ratio(plano.objetivosCents, plano.freeCents),
       },
       {
         key: 'lazer',
         label: 'Lazer',
+        icon: 'money',
         amountCents: plano.lazerCents,
         share: ratio(plano.lazerCents, plano.freeCents),
       },
@@ -236,19 +331,21 @@ export default function Inicio() {
           showsVerticalScrollIndicator={false}
           refreshControl={puxarParaAtualizar}
         >
-          <EmptyState
-            emoji="👋"
-            // Com nada cadastrado, `generateInsights` curto-circuita e devolve
-            // exatamente a fala de LINES.emptyState. Ler o insight em vez de
-            // sortear de novo evita duas frases diferentes do mesmo banco na
-            // mesma tela; o fallback existe só porque o seletor é nulável.
+          <Vazio
+            icon="money"
+            // Com nada cadastrado, `generateInsights` curto-circuita e devolve a
+            // fala de `emptyState`. Ler o título do insight em vez de escrever
+            // outro evita duas versões da mesma frase; o fallback existe só
+            // porque o seletor é nulável.
             title={insight?.title ?? 'Tudo vazio por aqui'}
-            body={
-              insight?.body ??
-              fill(pickLine(LINES.emptyState, hashSeed(month, 'emptyState')), { nome })
-            }
+            // A fala CURTA, não `insight.body`: o corpo vem de `LINES`, que é a
+            // boca inteira da Arrego e mora em /conversa.
+            line={shortLine('emptyState', hashSeed(month), { nome })}
             actionLabel="Cadastrar minha grana"
             onAction={() => abrir(ROTA_GRANA)}
+            // Único amarelo possível aqui: não existe card de destaque nesta
+            // tela, então a precedência cai no botão da ação principal.
+            variant="primary"
           />
         </ScrollView>
       </Screen>
@@ -256,27 +353,37 @@ export default function Inicio() {
   }
 
   const rendaCents = snapshot.incomeTotalCents;
-  const sobraCents = snapshot.freeCents;
+  const temRenda = rendaCents > 0;
 
-  const tituloDaSobra = sobraCents >= 0 ? 'Sobra deste mês' : 'Você estourou o mês';
   // Sem renda no mês, `freeCents` é só `-comprometido`: chamar isso de estouro
-  // seria o alarme falso que insights.ts se recusa a dar. O rótulo segue o sinal
-  // do número (é o que a pessoa vê), e a legenda diz o que o número de fato é.
-  const legendaDaSobra =
-    rendaCents <= 0
-      ? 'Sem renda cadastrada, isso aqui é só a soma das suas contas.'
-      : sobraCents >= 0
-        ? `${formatPercent(snapshot.savingsRate)} de tudo que entrou neste mês`
-        : 'É quanto falta para as contas deste mês fecharem.';
+  // seria o alarme falso que insights.ts se recusa a dar. Por isso o card sem
+  // renda não mostra número nenhum — mostra o convite.
+  const tituloDaSobra = plano.freeCents >= 0 ? 'Sobra deste mês' : 'Você estourou o mês';
+
+  /**
+   * O tempero, não o prato: UMA linha, no orçamento de 90 caracteres.
+   *
+   * O estado vem de `plano.viable`, um campo do motor — nada de reproduzir aqui
+   * o limiar de "mês apertado" que vive em insights.ts. Duas cópias da mesma
+   * régua divergem no primeiro ajuste, e aí esta linha e a dica logo abaixo
+   * passam a discordar sobre o mesmo mês na mesma tela.
+   */
+  const falaDoMes = !temRenda
+    ? shortLine('noIncome', hashSeed(month), { nome })
+    : !plano.viable
+      ? shortLine('planImpossible', hashSeed(month), {
+          nome,
+          // Mesma convenção de `negativeFlow`: {valor} é o tamanho do buraco.
+          valor: formatCents(Math.abs(plano.freeCents)),
+        })
+      : shortLine('planReady', hashSeed(month), {
+          nome,
+          reserva: formatCents(plano.reservaCents),
+          objetivos: formatCents(plano.objetivosCents),
+          lazer: formatCents(plano.lazerCents),
+        });
 
   const acaoDoInsight = insight?.action ?? null;
-  const tomDoCard: CardTone = insight?.severity === 'good' ? 'brand' : 'surface';
-  const critico = insight?.severity === 'critical';
-
-  // O card de marca é amarelo nos dois temas, então a régua também tem que ser
-  // fixa: `colors.border` viraria branco a 10% sobre o amarelo no tema escuro e
-  // sumiria.
-  const reguaDaEvidencia = tomDoCard === 'brand' ? palette.light.border : colors.border;
 
   return (
     <Screen>
@@ -287,8 +394,8 @@ export default function Inicio() {
         refreshControl={puxarParaAtualizar}
       >
         <View style={styles.header}>
-          <AppText variant="body" tone="secondary" style={styles.greeting}>
-            {saudacao}
+          <AppText variant="heading" numberOfLines={1} style={styles.saudacao}>
+            Oi, {nome}
           </AppText>
           <Pressable
             onPress={() => abrir(ROTA_PERFIL)}
@@ -298,15 +405,11 @@ export default function Inicio() {
             accessibilityLabel="Abrir meu perfil"
             style={({ pressed }) => (pressed ? styles.pressed : null)}
           >
-            <Avatar
-              name={nome}
-              photoUri={profile?.photoUri}
-              emoji={profile?.avatarEmoji}
-              size={44}
-            />
+            <Avatar name={nome} photoUri={profile?.photoUri} emoji={profile?.avatarEmoji} size={40} />
           </Pressable>
         </View>
 
+        {/* Sem card e sem borda: o mês é uma legenda, não um controle de formulário. */}
         <View style={styles.monthRow}>
           <Pressable
             onPress={() => setMonth(addMonths(month, -1))}
@@ -315,12 +418,10 @@ export default function Inicio() {
             accessibilityLabel="Mês anterior"
             style={({ pressed }) => [styles.monthArrow, pressed && styles.pressed]}
           >
-            <AppText variant="heading" tone="secondary">
-              ‹
-            </AppText>
+            <Icon name="back" size={18} tone="muted" />
           </Pressable>
 
-          <AppText variant="subheading" numberOfLines={1} style={styles.monthLabel}>
+          <AppText variant="small" tone="muted" numberOfLines={1}>
             {formatMonthLong(month)}
           </AppText>
 
@@ -331,173 +432,147 @@ export default function Inicio() {
             accessibilityLabel="Próximo mês"
             style={({ pressed }) => [styles.monthArrow, pressed && styles.pressed]}
           >
-            <AppText variant="heading" tone="secondary">
-              ›
-            </AppText>
+            <Icon name="next" size={18} tone="muted" />
           </Pressable>
         </View>
 
-        <HeroFigure cents={sobraCents} label={tituloDaSobra} caption={legendaDaSobra} />
-
-        {insight ? (
-          <View style={styles.insightBlock}>
-            <Card
-              tone={tomDoCard}
-              // Crítico ganha borda, nunca preenchimento: fundo vermelho numa
-              // tela de finanças de jovem é pânico, não informação.
-              style={
-                critico ? [styles.criticalEdge, { borderColor: colors.status.critical }] : undefined
-              }
-            >
-              <View style={styles.insightContent}>
-                <Badge label={rotuloDeSeveridade(insight.severity)} severity={insight.severity} />
-
-                <AppText variant="subheading">{insight.title}</AppText>
-                <AppText variant="body">{insight.body}</AppText>
-
-                {insight.evidence ? (
-                  <View style={[styles.evidence, { borderTopColor: reguaDaEvidencia }]}>
-                    <AppText variant="caption">{insight.evidence}</AppText>
-                  </View>
-                ) : null}
-
-                {acaoDoInsight ? (
-                  <Button
-                    label={acaoDoInsight.label}
-                    onPress={() => abrir(acaoDoInsight.href)}
-                    // Botão de marca dentro de card de marca some (amarelo no
-                    // amarelo), e `ghost` seria pior: ele pinta o texto com
-                    // `ink.primary`, que no tema escuro é branco — 1.58:1 sobre
-                    // o amarelo. `secondary` desenha superfície própria e é o
-                    // único que sobrevive aos dois temas em cima da marca.
-                    variant={tomDoCard === 'brand' ? 'secondary' : 'primary'}
-                    full
-                  />
-                ) : null}
-              </View>
-            </Card>
-
-            {/* Fora do card pelo mesmo motivo: no plano, `ghost` é seguro nos dois temas. */}
-            <Button
-              label="Falar com a Arrego"
-              icon="💬"
-              onPress={() => abrir(ROTA_CONVERSA)}
-              variant="ghost"
-              full
-            />
-          </View>
-        ) : null}
-
         {/*
-          Vem logo depois da fala da Arrego de propósito: a pessoa acabou de ler
-          quanto sobra e a próxima pergunta na cabeça dela é "e agora, o que eu
-          faço?". Fica ANTES da KPI row porque KPI é retrospecto ("entrou",
-          "comprometido") e o plano é o que fazer a seguir.
+          O ÚNICO amarelo da tela. Ele aponta pro assunto: quanto sobra. Qualquer
+          outro amarelo aqui (botão, chip, segundo card) faria os dois deixarem
+          de apontar pra coisa nenhuma.
 
-          Tom `surface`, não `brand`: o amarelo já é do card da Arrego quando a
-          notícia é boa, e dois amarelos empilhados não teriam hierarquia nenhuma.
+          Dentro de uma superfície de marca o `tone` do texto colapsa em
+          `onBrand` por contrato do kit — inclusive o do número. É por isso que o
+          herói não fica vermelho no mês estourado: quem carrega essa informação
+          é o rótulo ("Você estourou o mês") e o sinal do número, não a cor, que
+          sobre o amarelo daria 1.58:1.
         */}
-        <Card>
-          <View style={styles.planoContent}>
-            <AppText variant="subheading">O plano deste mês</AppText>
-
-            {plano.viable ? (
-              <>
-                <View style={styles.chart}>
-                  <StackedBar slices={baldes} height={10} />
-                  {/* Obrigatória: sem ela os baldes viram três cores sem nome. */}
-                  <Legend slices={baldes} />
-                </View>
-
-                <AppText variant="body">{resumoDoPlano(plano)}</AppText>
-
-                {/*
-                  `ghost` e não `primary`: o amarelo desta tela é do botão da
-                  Arrego, logo acima. Dois botões de marca a 100px um do outro
-                  competem e nenhum vira "a próxima coisa a fazer".
-                */}
-                <Button
-                  label="Ver o plano completo"
-                  onPress={() => abrir(ROTA_PLANO)}
-                  variant="ghost"
-                  full
-                />
-              </>
-            ) : (
-              <>
-                {/*
-                  Sem sobra não existem baldes, e desenhar três zeros seria fingir
-                  um plano. A nota do motor já distingue os dois motivos (nada
-                  cadastrado x gasto maior que a renda) — repetir a regra aqui
-                  criaria uma segunda fonte de verdade para a mesma frase.
-                */}
-                <AppText variant="body">
-                  {plano.notes[0] ?? 'Ainda não dá pra dividir o que não sobrou.'}
-                </AppText>
-
-                <Button
-                  label="Entender por que"
-                  onPress={() => abrir(ROTA_PLANO)}
-                  variant="ghost"
-                  full
-                />
-              </>
-            )}
-          </View>
+        <Card tone="brand" style={styles.cardHeroi}>
+          {temRenda ? (
+            <HeroFigure cents={plano.freeCents} label={tituloDaSobra} caption={falaDoMes} />
+          ) : (
+            <View style={styles.convite}>
+              <AppText variant="caption">Sem renda cadastrada</AppText>
+              <AppText variant="body">{falaDoMes}</AppText>
+              {/*
+                `secondary` é o único que sobrevive em cima da marca: `primary`
+                seria amarelo no amarelo e `ghost` pinta o texto com
+                `ink.primary`, que no tema escuro é branco.
+              */}
+              <Button
+                label="Cadastrar minha renda"
+                onPress={() => abrir(ROTA_GRANA)}
+                variant="secondary"
+              />
+            </View>
+          )}
         </Card>
 
         {/*
-          Três lado a lado não cabem: "R$ 2.000,00" no tamanho `heading` mede uns
-          106px e um terço da tela deixa ~90px de conteúdo — o número quebraria no
-          meio ("2.000,0" / "0"). Com base de 150px o grid embrulha sozinho (2 + 1
-          no celular, 3 no tablet) e todo número continua inteiro.
+          A antiga KPI row. Estes três números são a aritmética do herói, não o
+          assunto da tela — abertos por padrão, eles competiam com o número que a
+          pessoa abriu o app pra ver. Nada some: fica a um toque.
         */}
-        <View style={styles.kpiRow}>
-          <View style={styles.kpiCell}>
-            <StatTile label="Entrou" cents={rendaCents} icon="📥" tone="neutral" />
-          </View>
-          <View style={styles.kpiCell}>
-            <StatTile
-              label="Comprometido"
-              cents={snapshot.committedCents}
-              icon="🔒"
-              tone="neutral"
-              hint={
-                rendaCents > 0
-                  ? `${formatPercent(ratio(snapshot.committedCents, rendaCents))} da renda`
-                  : undefined
-              }
-            />
-          </View>
-          <View style={styles.kpiCell}>
+        <Reveal label="Ver a conta">
+          <ListRow
+            leading={<Icon name="trendUp" />}
+            title="Entrou"
+            trailing={<MoneyText cents={rendaCents} tone="neutral" tabular />}
+          />
+          {/*
+            O percentual da renda é o que dá TAMANHO ao número: "R$ 1.480" não
+            diz nada sozinho; "59% da renda" diz tudo. Condicionado a ter renda
+            porque sem divisor a conta seria 0% para qualquer valor — pior que
+            omitir.
+          */}
+          <ListRow
+            leading={<Icon name="lock" />}
+            title="Comprometido"
+            subtitle={
+              rendaCents > 0
+                ? `${formatPercent(ratio(snapshot.committedCents, rendaCents))} da renda`
+                : undefined
+            }
+            trailing={<MoneyText cents={snapshot.committedCents} tone="neutral" tabular />}
+          />
+          {/*
+            Neutro de propósito: saque de meta ("Guardado" negativo) em vermelho
+            seria punir quem foi honesto ao registrar.
+          */}
+          <ListRow
+            leading={<Icon name="shield" />}
+            title="Guardado no mês"
+            trailing={<MoneyText cents={guardadoNoMesCents} tone="neutral" tabular />}
+          />
+        </Reveal>
+
+        {plano.viable ? (
+          <View style={styles.bloco}>
             {/*
-              Neutro de propósito nos três: a cor de dinheiro é do herói, que já
-              diz se o mês fecha. E saque de meta ("Guardado" negativo) em
-              vermelho seria punir quem foi honesto ao registrar.
+              As três linhas abaixo SÃO a legenda desta barra, na mesma ordem das
+              fatias: rótulo e valor, nunca a cor sozinha. Repetir a informação
+              num `Legend` em cima delas seria escrever os mesmos três números
+              duas vezes — exatamente o ruído que esta tela veio cortar.
+
+              O "por quê" do plano não mora aqui: mora em /plano, a um toque.
             */}
-            <StatTile label="Guardado no mês" cents={guardadoNoMesCents} icon="🏦" tone="neutral" />
+            <StackedBar slices={baldes} height={BARRA_FINA} />
+
+            {baldes.map((balde) => (
+              <ListRow
+                key={balde.key}
+                leading={<Icon name={balde.icon} />}
+                title={balde.label}
+                trailing={<MoneyText cents={balde.amountCents} tone="neutral" tabular />}
+                onPress={() => abrir(ROTA_PLANO)}
+                accessibilityLabel={`${balde.label}: ${formatCents(balde.amountCents)}. Toque para ver o plano do mês.`}
+              />
+            ))}
           </View>
-        </View>
+        ) : (
+          /*
+            Sem sobra não existem baldes, e desenhar três zeros seria fingir um
+            plano. O motivo (a nota do motor) é parágrafo — e parágrafo é da tela
+            do plano, não desta.
+          */
+          <ListRow
+            leading={<Icon name="plan" />}
+            title="O plano deste mês"
+            subtitle="Ainda não sobra nada pra dividir"
+            onPress={() => abrir(ROTA_PLANO)}
+          />
+        )}
 
         <View>
           <SectionHeader
-            title="Pra onde vai seu dinheiro"
-            actionLabel="Ver gastos"
+            title="Pra onde vai"
+            actionLabel="Ver tudo"
             onAction={() => abrir(ROTA_GRANA)}
+            // O respiro entre blocos é do container. Sem isto, some com o gap.
+            first
           />
-          {fatias.length > 0 ? (
-            <Card>
-              <View style={styles.chart}>
-                <StackedBar slices={fatias} />
-                {/* A Legend é obrigatória: identidade de fatia nunca é só a cor. */}
-                <Legend slices={fatias} />
-              </View>
-            </Card>
+          {fatiasVisiveis.length > 0 ? (
+            <View style={styles.grafico}>
+              <StackedBar slices={fatiasVisiveis} />
+              {/* Obrigatória: identidade de fatia nunca é só a cor. */}
+              <Legend slices={fatiasVisiveis} />
+              {/*
+                O corte em 4 é da BARRA, não do dado: o balde "Outros" torna o
+                desenho legível, mas quem tem 7 categorias tem direito de saber
+                quais são as 3 que sumiram dentro dele. Esconder atrás de um
+                toque é o contrato; apagar não é.
+              */}
+              {fatias.length > fatiasVisiveis.length ? (
+                <Reveal label="Ver todas as categorias">
+                  <Legend slices={fatias} />
+                </Reveal>
+              ) : null}
+            </View>
           ) : (
-            <EmptyState
-              emoji="🧾"
+            <Vazio
+              icon="money"
               title="Nenhum gasto neste mês"
-              body="Ou você não gastou nada, ou não me contou. Uma das duas eu consigo resolver."
+              line="Ou você não gastou nada, ou não me contou."
               actionLabel="Cadastrar um gasto"
               onAction={() => abrir(ROTA_GRANA)}
             />
@@ -506,50 +581,72 @@ export default function Inicio() {
 
         <View>
           <SectionHeader
-            title="Suas metas"
+            title="Metas"
             actionLabel="Ver todas"
             onAction={() => abrir(ROTA_OBJETIVOS)}
+            first
           />
           {metasEmDestaque.length > 0 ? (
-            <Card>
-              <View style={styles.goals}>
-                {metasEmDestaque.map(({ goal, projection }) => (
-                  <Pressable
-                    key={goal.id}
-                    onPress={() => abrir(ROTA_OBJETIVOS)}
-                    accessible
-                    accessibilityRole="button"
-                    // O leitor de tela agrupa o Pressable e engole o progressbar
-                    // do Meter, então o número tem que estar aqui.
-                    accessibilityLabel={
-                      `${goal.label}: ${formatCents(projection.savedCents)} ` +
-                      `de ${formatCents(projection.targetCents)}. Toque para ver seus objetivos.`
-                    }
-                    style={({ pressed }) => (pressed ? styles.pressed : null)}
-                  >
-                    <Meter
-                      progress={projection.progress}
-                      label={`${goal.emoji} ${goal.label}`}
-                      caption={legendaDaMeta(projection)}
-                      // Meta atrasada não é `critical`: o próprio motor classifica
-                      // isso como 'warning'. Vermelho aqui gritaria mais alto que
-                      // a Arrego, e por um motivo menor.
-                      tone={projection.progress >= 1 ? 'good' : 'brand'}
-                    />
-                  </Pressable>
-                ))}
-              </View>
-            </Card>
+            <View>
+              {metasEmDestaque.map(({ goal, projection }) => (
+                <LinhaDaMeta
+                  key={goal.id}
+                  goal={goal}
+                  projection={projection}
+                  onPress={() => abrir(ROTA_OBJETIVOS)}
+                />
+              ))}
+            </View>
           ) : (
-            <EmptyState
-              emoji="🎯"
+            <Vazio
+              icon="target"
               title="Nenhuma meta ainda"
-              body="Um alvo com nome é o que separa guardar dinheiro de ver o dinheiro sumir. Cria o primeiro — pode ser barato."
+              line={shortLine('noGoals', hashSeed(month), { nome })}
               actionLabel="Criar um objetivo"
               onAction={() => abrir(ROTA_OBJETIVOS)}
             />
           )}
         </View>
+
+        {insight ? (
+          <View>
+            {/*
+              O card da Arrego virou uma linha. O badge de severidade saiu junto:
+              o título já diz o que aconteceu ("Seu mês fecha no vermelho"), e um
+              selo vermelho em cima disso é urgência decorativa.
+            */}
+            <ListRow
+              leading={<Icon name="chat" />}
+              title={insight.title}
+              onPress={() => abrir(ROTA_CONVERSA)}
+              accessibilityLabel={`${insight.title}. Toque para falar com a Arrego.`}
+            />
+
+            {/*
+              O parágrafo da Arrego não foi deletado — foi fechado. É o mecanismo
+              do orçamento de texto: quem quer o número vê o número, quem quer a
+              explicação pede a explicação. A ação vem junto, porque ela é a saída
+              prática da fala e some se ficar sem casa.
+            */}
+            <Reveal label="Por quê?">
+              <AppText variant="body" tone="secondary">
+                {insight.body}
+              </AppText>
+              {insight.evidence ? (
+                <AppText variant="caption" tone="muted">
+                  {insight.evidence}
+                </AppText>
+              ) : null}
+              {acaoDoInsight ? (
+                <Button
+                  label={acaoDoInsight.label}
+                  onPress={() => abrir(acaoDoInsight.href)}
+                  variant="ghost"
+                />
+              ) : null}
+            </Reveal>
+          </View>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -558,37 +655,51 @@ export default function Inicio() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.screen,
+    paddingTop: spacing.lg,
     // Folga para a tab bar e o gesto do iOS não comerem a última linha.
     paddingBottom: spacing.xxxl * 2,
-    gap: spacing.xl,
+    // O que separa dois assuntos é o espaço. Borda divide; espaço organiza.
+    gap: spacing.section,
   },
   contentCentered: { flexGrow: 1, justifyContent: 'center' },
 
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  // A saudação é longa e quebra em várias linhas: sem `flex`, ela empurraria o
-  // avatar para fora da tela em vez de embrulhar.
-  greeting: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  saudacao: { flexShrink: 1 },
   pressed: { opacity: 0.65 },
 
-  monthRow: { flexDirection: 'row', alignItems: 'center' },
+  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   monthArrow: {
     width: MIN_TOUCH,
     height: MIN_TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthLabel: { flex: 1, textAlign: 'center' },
 
-  insightBlock: { gap: spacing.md },
-  insightContent: { gap: spacing.md },
-  planoContent: { gap: spacing.md },
-  criticalEdge: { borderWidth: 2 },
-  evidence: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.sm },
+  // Respiro maior que o do card padrão: é o número principal da tela.
+  cardHeroi: { padding: spacing.xl },
+  convite: { gap: spacing.md, alignItems: 'flex-start' },
 
-  kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  kpiCell: { flexGrow: 1, flexBasis: 150 },
+  bloco: { gap: spacing.md },
+  grafico: { gap: spacing.md },
 
-  chart: { gap: spacing.md },
-  goals: { gap: spacing.lg },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: ROW_MIN_HEIGHT,
+    paddingVertical: spacing.sm,
+  },
+  metaLeading: { width: LEADING_SIZE, alignItems: 'center', justifyContent: 'center' },
+  metaEmoji: { fontSize: 22, lineHeight: 28 },
+  metaBody: { flex: 1, gap: spacing.xs },
+
+  vazio: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
+  vazioAcao: { marginTop: spacing.sm },
+  centrado: { textAlign: 'center' },
 });

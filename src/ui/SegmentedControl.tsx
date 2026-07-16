@@ -11,6 +11,18 @@ export type SegmentedControlProps = {
   onChange: (key: string) => void;
 };
 
+/**
+ * SELEÇÃO NÃO É AMARELO. Regra do kit inteiro (ver Chip e DayField).
+ *
+ * Este controle já foi pastilha amarela. O problema não aparecia aqui, aparecia
+ * na FOLHA: um formulário com categoria + parcelas + mês + botão nascia com
+ * quatro superfícies amarelas ao mesmo tempo, cada uma apontando pra um lado.
+ * A REGRA DO AMARELO em tokens.ts põe "estado ativo" na ÚLTIMA precedência,
+ * atrás do botão da ação principal — então quem cede é a seleção.
+ *
+ * A pastilha branca sobre trilho recuado marca o selecionado sem gastar a cor
+ * da marca, e é o que qualquer app de banco faz.
+ */
 export function SegmentedControl({ options, value, onChange }: SegmentedControlProps) {
   const { colors } = useTheme();
 
@@ -31,9 +43,7 @@ export function SegmentedControl({ options, value, onChange }: SegmentedControlP
             accessibilityLabel={option.label}
             style={({ pressed }) => [
               styles.segment,
-              // Amarelo é superfície: selecionado vira pastilha amarela com
-              // tinta onBrand (13.3:1), nunca texto amarelo.
-              selected && { backgroundColor: colors.brand.amber },
+              selected && { backgroundColor: colors.surface },
               pressed && styles.pressed,
             ]}
           >
@@ -42,7 +52,7 @@ export function SegmentedControl({ options, value, onChange }: SegmentedControlP
               numberOfLines={1}
               style={[
                 styles.label,
-                { color: selected ? colors.ink.onBrand : colors.ink.secondary },
+                { color: selected ? colors.ink.primary : colors.ink.secondary },
               ]}
             >
               {option.label}
@@ -71,6 +81,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
   },
-  label: { fontWeight: '700' },
+  label: { fontWeight: '600' },
   pressed: { opacity: 0.65 },
 });

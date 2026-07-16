@@ -1,9 +1,9 @@
 /**
  * Tela "Grana": o que entra, o que sai todo mês e o que sai sem ninguém ver.
  *
- * As três abas são a mesma mecânica com três tabelas: cabeçalho com o total do
- * mês, lista, folha de formulário. O que muda de verdade entre elas é a REGRA
- * DE ESCRITA de cada tabela — e é aí que mora o cuidado deste arquivo:
+ * As três abas são a mesma mecânica com três tabelas. O que muda de verdade
+ * entre elas é a REGRA DE ESCRITA de cada uma — e é aí que mora o cuidado deste
+ * arquivo:
  *
  * 1. O CHECK do SQLite em `incomes`/`expenses` é excludente: recorrente exige
  *    `dayOfMonth` e proíbe a data; pontual exige a data e proíbe `dayOfMonth`.
@@ -14,12 +14,20 @@
  *    PONTUAL de propósito (o freela de março entrou em março). Por isso só item
  *    RECORRENTE recebe a opção de arquivar: arquivar um gasto pontual não muda
  *    conta nenhuma e só confundiria quem clicou.
+ *
+ * 3. A CATEGORIA SAIU DA LINHA. "Moradia · vence todo dia 10" embaixo de
+ *    "Aluguel" é a definição de ruído: ninguém precisa que a gente explique o
+ *    que é aluguel. Na linha ficou o dia; a categoria virou o ícone (que é
+ *    ritmo, não identidade) e continua inteira em dois lugares onde não custa
+ *    nada — no `accessibilityLabel`, que o leitor de tela anuncia, e no chip
+ *    marcado quando a folha abre para editar.
  */
 
 import type { ExpenseInput, IncomeInput, SubscriptionInput } from '@/db/repositories';
 import { subscriptionMonthlyCents } from '@/engine/analysis';
 import { useArrego, useSnapshot } from '@/store/useArrego';
-import { spacing } from '@/theme/tokens';
+import { HIT_SLOP, MIN_TOUCH, radius, spacing } from '@/theme/tokens';
+import { useTheme } from '@/theme/useTheme';
 import type {
   Cents,
   Expense,
@@ -35,20 +43,19 @@ import {
   Badge,
   Button,
   Card,
-  Chip,
   CurrencyField,
   DayField,
-  EmptyState,
   Field,
+  Icon,
   ListRow,
   MoneyText,
+  Reveal,
+  Row,
   Screen,
-  SectionHeader,
-  SegmentedControl,
   Sheet,
   TextField,
+  type IconName,
   type MoneyTone,
-  type SegmentedOption,
 } from '@/ui';
 import {
   currentMonthKey,
@@ -60,39 +67,39 @@ import {
 } from '@/utils/date';
 import { formatCents, formatPercent, ratio } from '@/utils/money';
 import { useState, type ReactNode } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 /* ────────────────────────────── Catálogos ─────────────────────────────── */
 
-type Meta = { emoji: string; label: string };
+type Meta = { icon: IconName; label: string };
 
 const INCOME_META = {
-  salary: { emoji: '💼', label: 'Salário' },
-  allowance: { emoji: '👛', label: 'Mesada' },
-  commission: { emoji: '🤝', label: 'Comissão' },
-  freelance: { emoji: '🛠️', label: 'Freela' },
-  gift: { emoji: '🎁', label: 'Presente' },
-  other: { emoji: '🪙', label: 'Outro' },
+  salary: { icon: 'work', label: 'Salário' },
+  allowance: { icon: 'profile', label: 'Mesada' },
+  commission: { icon: 'trendUp', label: 'Comissão' },
+  freelance: { icon: 'tool', label: 'Freela' },
+  gift: { icon: 'gift', label: 'Presente' },
+  other: { icon: 'money', label: 'Outro' },
 } as const satisfies Record<IncomeKind, Meta>;
 
 const EXPENSE_META = {
-  moradia: { emoji: '🏠', label: 'Moradia' },
-  contas: { emoji: '💡', label: 'Contas' },
-  mercado: { emoji: '🛒', label: 'Mercado' },
-  transporte: { emoji: '🚌', label: 'Transporte' },
-  saude: { emoji: '💊', label: 'Saúde' },
-  educacao: { emoji: '📚', label: 'Educação' },
-  lazer: { emoji: '🍿', label: 'Lazer' },
-  outros: { emoji: '📦', label: 'Outros' },
+  moradia: { icon: 'home', label: 'Moradia' },
+  contas: { icon: 'bill', label: 'Contas' },
+  mercado: { icon: 'market', label: 'Mercado' },
+  transporte: { icon: 'transport', label: 'Transporte' },
+  saude: { icon: 'health', label: 'Saúde' },
+  educacao: { icon: 'learn', label: 'Educação' },
+  lazer: { icon: 'leisure', label: 'Lazer' },
+  outros: { icon: 'box', label: 'Outros' },
 } as const satisfies Record<ExpenseCategory, Meta>;
 
 const SUBSCRIPTION_META = {
-  streaming: { emoji: '📺', label: 'Streaming' },
-  musica: { emoji: '🎧', label: 'Música' },
-  games: { emoji: '🎮', label: 'Games' },
-  academia: { emoji: '🏋️', label: 'Academia' },
-  apps: { emoji: '📱', label: 'Apps' },
-  outros: { emoji: '📦', label: 'Outros' },
+  streaming: { icon: 'tv', label: 'Streaming' },
+  musica: { icon: 'music', label: 'Música' },
+  games: { icon: 'games', label: 'Games' },
+  academia: { icon: 'gym', label: 'Academia' },
+  apps: { icon: 'phone', label: 'Apps' },
+  outros: { icon: 'box', label: 'Outros' },
 } as const satisfies Record<SubscriptionCategory, Meta>;
 
 // A ordem é decisão de UI (o mais comum primeiro), não a ordem do type.
@@ -132,9 +139,199 @@ const SUBSCRIPTION_CATEGORIES: readonly SubscriptionCategory[] = [
  */
 const SUBSCRIPTION_SHARE_LIMIT = 0.1;
 
-const LABEL_REQUIRED = 'Dá um nome pra isso — daqui a um mês você não lembra o que era.';
-const AMOUNT_REQUIRED = 'Precisa de um valor maior que zero. Zero eu não consigo somar.';
-const DAY_REQUIRED = 'Escolhe um dia — sem ele eu não sei em que mês isso cai.';
+const LABEL_REQUIRED = 'Dá um nome.';
+const AMOUNT_REQUIRED = 'Precisa de um valor.';
+const DAY_REQUIRED = 'Escolhe um dia.';
+
+/* ─────────────────────── Peças locais (e por quê) ─────────────────────── */
+
+/**
+ * ORÇAMENTO DE AMARELO DESTA TELA (a regra do amarelo, em tokens.ts): o único
+ * amarelo é o botão "+ Nova ...", a ação principal. É por isso que a seleção
+ * daqui — abas e chips — é local em vez de vir do kit: `SegmentedControl` e
+ * `Chip` pintam o estado ativo com `brand.amber`, e com eles esta tela teria
+ * quatro superfícies de marca disputando a mesma atenção. Estado ativo é a
+ * ÚLTIMA precedência do amarelo; o botão ganha dele.
+ *
+ * O `DayField` continua sendo o do kit, amarelo e tudo: o contrato dele (tocar
+ * no dia já escolhido é o único caminho de volta para `null`) é sutil demais
+ * para ser reescrito aqui só por causa de cor. Fica como dívida do kit.
+ */
+
+type SwitchOption = { key: string; label: string };
+
+/**
+ * Seleção marcada por TINTA, não por marca: pastilha `ink.primary` com texto
+ * `ink.inverse`. Os dois invertem juntos no tema escuro (pastilha clara, texto
+ * escuro) e nenhum dos dois lados fica abaixo de 4.5:1.
+ *
+ * Não se chama `Switch` porque esse nome já é do React Native, e lá ele é o
+ * liga/desliga — importar um sem querer no lugar do outro é fácil demais.
+ */
+function Segmented({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly SwitchOption[];
+  value: string;
+  onChange: (key: string) => void;
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      style={[styles.switch, { backgroundColor: colors.surfaceSunken }]}
+    >
+      {options.map((option) => {
+        const selected = option.key === value;
+        return (
+          <Pressable
+            key={option.key}
+            onPress={() => onChange(option.key)}
+            accessible
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            accessibilityLabel={option.label}
+            // Alvo cheio em vez de hitSlop: segmentos são vizinhos coladinhos e
+            // o slop de um invadiria a área do outro.
+            style={({ pressed }) => [
+              styles.segment,
+              selected && { backgroundColor: colors.ink.primary },
+              pressed && styles.pressed,
+            ]}
+          >
+            <AppText
+              variant="small"
+              numberOfLines={1}
+              style={[
+                styles.segmentLabel,
+                { color: selected ? colors.ink.inverse : colors.ink.secondary },
+              ]}
+            >
+              {option.label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * Chip de escolha. Marcado = mesma superfície, tinta primária e um anel: a cor
+ * sozinha (secondary → primary) é diferença fraca demais para carregar "está
+ * selecionado" sem ajuda.
+ */
+function PickerChip({
+  label,
+  icon,
+  selected,
+  onPress,
+}: {
+  label: string;
+  icon?: IconName;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const ink = selected ? colors.ink.primary : colors.ink.secondary;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={HIT_SLOP}
+      accessible
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          backgroundColor: colors.surfaceSunken,
+          borderColor: selected ? colors.ink.primary : 'transparent',
+        },
+        pressed && styles.pressed,
+      ]}
+    >
+      {/* Mesma tinta do rótulo: sem `color`, o glifo cai em `ink.primary` e o
+          chip não marcado teria ícone forte com texto apagado. */}
+      {icon ? <Icon name={icon} size={14} color={ink} /> : null}
+      <AppText variant="small" numberOfLines={1} style={[styles.chipLabel, { color: ink }]}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+/** Vazio: um glifo apagado, um título, uma linha e o botão. Nada mais. */
+function Empty({
+  icon,
+  title,
+  line,
+  actionLabel,
+  onAction,
+}: {
+  icon: IconName;
+  title: string;
+  line: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <View style={styles.empty}>
+      <Icon name={icon} size={24} tone="muted" />
+      <AppText variant="subheading">{title}</AppText>
+      <AppText variant="small" tone="muted" style={styles.centered}>
+        {line}
+      </AppText>
+      <View style={styles.emptyAction}>
+        <Button label={actionLabel} icon="add" onPress={onAction} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * O cabeçalho da aba: o rótulo cinza, o número, e o que o número precisar de
+ * apoio. Sem card — card branco em cima do plano cinza para segurar duas linhas
+ * de texto é moldura, e moldura foi metade do problema.
+ */
+function TotalHeader({
+  label,
+  cents,
+  tone = 'neutral',
+  children,
+}: {
+  label: string;
+  cents: Cents;
+  tone?: MoneyTone;
+  children?: ReactNode;
+}) {
+  return (
+    // Sem `accessible` no grupo: ele engoliria o Reveal, que é um botão.
+    <View style={styles.head}>
+      <AppText variant="caption" tone="muted">
+        {label}
+      </AppText>
+      <MoneyText cents={cents} variant="title" tone={tone} />
+      {children}
+    </View>
+  );
+}
+
+/** Rótulo à esquerda, valor à direita. A conta que estava no cabeçalho. */
+function SplitLine({ label, cents }: { label: string; cents: Cents }) {
+  return (
+    <Row justify="space-between">
+      <AppText variant="small" tone="secondary">
+        {label}
+      </AppText>
+      <MoneyText cents={cents} variant="small" tone="neutral" tabular />
+    </Row>
+  );
+}
 
 /* ──────────────────────────── Folha (Sheet) ───────────────────────────── */
 
@@ -192,51 +389,10 @@ async function didSave(action: Promise<void>): Promise<boolean> {
 
 /* ───────────────────────────── Peças comuns ───────────────────────────── */
 
-const RECURRING_OPTIONS: SegmentedOption[] = [
+const RECURRING_OPTIONS: readonly SwitchOption[] = [
   { key: 'sim', label: 'Todo mês' },
   { key: 'nao', label: 'Uma vez só' },
 ];
-
-function TotalHeader({
-  label,
-  cents,
-  caption,
-  tone = 'neutral',
-  children,
-}: {
-  label: string;
-  cents: Cents;
-  caption: string;
-  tone?: MoneyTone;
-  children?: ReactNode;
-}) {
-  return (
-    <Card style={styles.header}>
-      <AppText variant="caption" tone="muted">
-        {label}
-      </AppText>
-      <MoneyText cents={cents} variant="title" tone={tone} />
-      <AppText variant="small" tone="secondary">
-        {caption}
-      </AppText>
-      {children}
-    </Card>
-  );
-}
-
-function ArchivedSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <SectionHeader title={title} />
-      <AppText variant="small" tone="muted" style={styles.sectionNote}>
-        Não entram mais nas contas do mês, mas ficam aqui para o histórico continuar certo.
-      </AppText>
-      <Card padded={false} style={styles.list}>
-        {children}
-      </Card>
-    </View>
-  );
-}
 
 function todayDay(): number {
   return new Date().getDate();
@@ -251,17 +407,68 @@ function dayOfISO(iso: string): number {
   return parseISODate(iso).getDate();
 }
 
+/**
+ * A dica do dia só aparece quando ela informa alguma coisa.
+ *
+ * Item pontual mostra a data cheia porque o mês dele pode não ser o da tela (o
+ * freela de março continua em março). Item recorrente só fala quando o dia
+ * escolhido não existe em todo mês — nos outros 28 dias a dica seria uma regra
+ * de borda contada para quem nunca vai esbarrar nela.
+ */
+function dayHint(day: number | null, recurring: boolean, anchor: MonthKey): string | undefined {
+  if (!recurring) {
+    if (day === null) return `Dentro de ${formatMonthLong(anchor)}.`;
+    // A data já sai encaixada no mês: escolher 31 em fevereiro mostra "28 de
+    // fevereiro" aqui, que é o encaixe se explicando sozinho.
+    return formatDayMonth(dateInMonth(day, anchor));
+  }
+  return day !== null && day > 28 ? 'Nos meses curtos, cai no último dia.' : undefined;
+}
+
+/**
+ * A diferença entre arquivar e apagar, fechada por padrão. É uma explicação de
+ * três linhas — o lugar dela é atrás de um toque, não aberta em cima do
+ * formulário toda vez que alguém quer corrigir um valor.
+ *
+ * Serve de brinde: a ação mora num toque longo na linha, que é um gesto que
+ * ninguém descobre sozinho. Aqui ela está escrita.
+ */
+function DeleteHelp({ text }: { text: string }) {
+  return (
+    <Reveal label="Arquivar ou apagar?">
+      <AppText variant="small" tone="secondary">
+        {text}
+      </AppText>
+    </Reveal>
+  );
+}
+
+const HELP_ITEM =
+  'Segure a linha na lista. Arquivar para de contar daqui pra frente e mantém os meses passados certos; apagar some com ela de tudo, inclusive do histórico. Item de uma vez só não arquiva — ele já pertence ao mês em que entrou.';
+
+const HELP_SUBSCRIPTION =
+  'Segure a linha na lista. "Cancelei" para de contar daqui pra frente e guarda a prova de que você cortou; apagar some com ela de tudo, como se nunca tivesse existido.';
+
 /* ─────────────────────────────── Entradas ─────────────────────────────── */
 
-function incomeSubtitle(income: Income): string {
-  const when = income.recurring
+function incomeWhen(income: Income): string {
+  return income.recurring
     ? income.dayOfMonth !== null
       ? `todo dia ${income.dayOfMonth}`
       : 'todo mês'
     : income.receivedOn !== null
       ? formatDayMonth(income.receivedOn)
       : 'sem data';
+}
+
+function incomeSubtitle(income: Income): string {
+  const when = incomeWhen(income);
   return income.archivedAt !== null ? `${when} · arquivada` : when;
+}
+
+/** A categoria saiu da linha, mas não do app: quem lê por áudio continua ouvindo. */
+function incomeLabel(income: Income): string {
+  return `${income.label}, ${INCOME_META[income.kind].label}, ${incomeSubtitle(income)}, ${formatCents(income.amountCents)}`;
 }
 
 type IncomeFormProps = {
@@ -320,7 +527,7 @@ function IncomeForm({ initial, month, onSave, onClose }: IncomeFormProps) {
   return (
     <>
       <TextField
-        label="O que é essa entrada?"
+        label="Nome"
         value={label}
         onChangeText={setLabel}
         placeholder="Salário da firma"
@@ -332,10 +539,10 @@ function IncomeForm({ initial, month, onSave, onClose }: IncomeFormProps) {
       <Field label="Tipo">
         <View style={styles.chips}>
           {INCOME_KINDS.map((option) => (
-            <Chip
+            <PickerChip
               key={option}
               label={INCOME_META[option].label}
-              icon={INCOME_META[option].emoji}
+              icon={INCOME_META[option].icon}
               selected={kind === option}
               onPress={() => setKind(option)}
             />
@@ -343,33 +550,22 @@ function IncomeForm({ initial, month, onSave, onClose }: IncomeFormProps) {
         </View>
       </Field>
 
-      <CurrencyField
-        label="Quanto entra?"
-        cents={cents}
-        onChangeCents={setCents}
-        error={amountError}
-      />
+      <CurrencyField label="Valor" cents={cents} onChangeCents={setCents} error={amountError} />
 
-      <Field label="Cai todo mês?">
-        <SegmentedControl
-          options={RECURRING_OPTIONS}
-          value={recurring ? 'sim' : 'nao'}
-          onChange={(key) => setRecurring(key === 'sim')}
-        />
-      </Field>
+      {/* Sem rótulo: "Cai todo mês?" em cima de "Todo mês / Uma vez só" é a
+          pergunta e a resposta na mesma tela. */}
+      <Segmented
+        options={RECURRING_OPTIONS}
+        value={recurring ? 'sim' : 'nao'}
+        onChange={(key) => setRecurring(key === 'sim')}
+      />
 
       <View style={styles.dayBlock}>
         <DayField
           label={recurring ? 'Cai todo dia' : 'Entrou no dia'}
           value={day}
           onChange={setDay}
-          hint={
-            recurring
-              ? 'Dia 31 vira o último dia nos meses que não têm 31.'
-              : day !== null
-                ? `Entrou em ${formatDayMonth(dateInMonth(day, anchor))}.`
-                : `Dentro de ${formatMonthLong(anchor)}.`
-          }
+          hint={dayHint(day, recurring, anchor)}
         />
         {dayError ? (
           <AppText variant="small" tone="negative">
@@ -377,6 +573,8 @@ function IncomeForm({ initial, month, onSave, onClose }: IncomeFormProps) {
           </AppText>
         ) : null}
       </View>
+
+      {initial !== null ? <DeleteHelp text={HELP_ITEM} /> : null}
 
       <Button
         label={saving ? 'Salvando…' : 'Salvar'}
@@ -403,38 +601,28 @@ function EntrouTab(): ReactNode {
   const archived = incomes.filter((income) => income.archivedAt !== null);
 
   const save = (input: IncomeInput): Promise<boolean> =>
-    didSave(
-      sheet.target !== null ? updateIncome(sheet.target.id, input) : addIncome(input),
-    );
+    didSave(sheet.target !== null ? updateIncome(sheet.target.id, input) : addIncome(input));
 
   function confirm(income: Income): void {
     if (income.archivedAt !== null) {
-      Alert.alert(
-        income.label,
-        'Reativar traz ela de volta para as contas do mês. Apagar some com ela de vez, inclusive dos meses passados.',
-        [
-          { text: 'Voltar', style: 'cancel' },
-          { text: 'Reativar', onPress: () => void updateIncome(income.id, { archivedAt: null }) },
-          { text: 'Apagar', style: 'destructive', onPress: () => void removeIncome(income.id) },
-        ],
-      );
+      Alert.alert(income.label, 'Reativar volta a contar. Apagar some com o histórico.', [
+        { text: 'Voltar', style: 'cancel' },
+        { text: 'Reativar', onPress: () => void updateIncome(income.id, { archivedAt: null }) },
+        { text: 'Apagar', style: 'destructive', onPress: () => void removeIncome(income.id) },
+      ]);
       return;
     }
 
     if (income.recurring) {
-      Alert.alert(
-        income.label,
-        'Arquivar para de contar daqui pra frente e mantém os meses passados certos. Apagar some com ela de tudo, inclusive do histórico.',
-        [
-          { text: 'Voltar', style: 'cancel' },
-          { text: 'Arquivar', onPress: () => void archiveIncome(income.id) },
-          { text: 'Apagar', style: 'destructive', onPress: () => void removeIncome(income.id) },
-        ],
-      );
+      Alert.alert(income.label, 'Arquivar mantém o histórico. Apagar não.', [
+        { text: 'Voltar', style: 'cancel' },
+        { text: 'Arquivar', onPress: () => void archiveIncome(income.id) },
+        { text: 'Apagar', style: 'destructive', onPress: () => void removeIncome(income.id) },
+      ]);
       return;
     }
 
-    Alert.alert(income.label, 'Isso apaga a entrada de vez. Sem histórico, sem volta.', [
+    Alert.alert(income.label, 'Apaga de vez, sem histórico.', [
       { text: 'Voltar', style: 'cancel' },
       { text: 'Apagar', style: 'destructive', onPress: () => void removeIncome(income.id) },
     ]);
@@ -446,47 +634,62 @@ function EntrouTab(): ReactNode {
         label={`Entrou em ${formatMonthLong(month)}`}
         cents={snapshot.incomeTotalCents}
         tone="auto"
-        caption={`Todo mês: ${formatCents(snapshot.incomeFixedCents)} · Só neste mês: ${formatCents(snapshot.incomeVariableCents)}`}
-      />
-
-      <Button label="Nova entrada" icon="+" onPress={sheet.openNew} full />
+      >
+        <Reveal label="Ver a conta">
+          <SplitLine label="Todo mês" cents={snapshot.incomeFixedCents} />
+          <SplitLine label="Só neste mês" cents={snapshot.incomeVariableCents} />
+        </Reveal>
+      </TotalHeader>
 
       {active.length > 0 ? (
-        <Card padded={false} style={styles.list}>
-          {active.map((income) => (
-            <ListRow
-              key={income.id}
-              title={income.label}
-              subtitle={incomeSubtitle(income)}
-              leading={<AppText variant="heading">{INCOME_META[income.kind].emoji}</AppText>}
-              trailing={<MoneyText cents={income.amountCents} signed />}
-              onPress={() => sheet.openEdit(income)}
-              onLongPress={() => confirm(income)}
-            />
-          ))}
-        </Card>
+        <>
+          <Button label="Nova entrada" icon="add" onPress={sheet.openNew} full />
+
+          <View>
+            {active.map((income) => (
+              <ListRow
+                key={income.id}
+                title={income.label}
+                subtitle={incomeSubtitle(income)}
+                leading={<Icon name={INCOME_META[income.kind].icon} />}
+                trailing={<MoneyText cents={income.amountCents} signed />}
+                accessibilityLabel={incomeLabel(income)}
+                onPress={() => sheet.openEdit(income)}
+                onLongPress={() => confirm(income)}
+              />
+            ))}
+          </View>
+        </>
       ) : (
-        <EmptyState
-          emoji="🪙"
-          title="Nada entrando por aqui"
-          body="Sem saber o que entra, qualquer conta que eu fizer dá zero. Cadastra o que cai na sua mão: salário, mesada, bico, pix da vó. Vale tudo, e pouco também é número."
+        <Empty
+          icon="money"
+          title="Nada entrando"
+          line="Salário, mesada, bico, pix da vó — vale tudo."
+          actionLabel="Nova entrada"
+          onAction={sheet.openNew}
         />
       )}
 
       {archived.length > 0 ? (
-        <ArchivedSection title="Arquivadas">
-          {archived.map((income) => (
-            <ListRow
-              key={income.id}
-              title={income.label}
-              subtitle={incomeSubtitle(income)}
-              leading={<AppText variant="heading">{INCOME_META[income.kind].emoji}</AppText>}
-              trailing={<MoneyText cents={income.amountCents} tone="neutral" />}
-              onPress={() => sheet.openEdit(income)}
-              onLongPress={() => confirm(income)}
-            />
-          ))}
-        </ArchivedSection>
+        <View style={styles.section}>
+          <AppText variant="caption" tone="muted">
+            Arquivadas
+          </AppText>
+          <View>
+            {archived.map((income) => (
+              <ListRow
+                key={income.id}
+                title={income.label}
+                subtitle={incomeSubtitle(income)}
+                leading={<Icon name={INCOME_META[income.kind].icon} tone="muted" />}
+                trailing={<MoneyText cents={income.amountCents} tone="neutral" />}
+                accessibilityLabel={incomeLabel(income)}
+                onPress={() => sheet.openEdit(income)}
+                onLongPress={() => confirm(income)}
+              />
+            ))}
+          </View>
+        </View>
       ) : null}
 
       <Sheet
@@ -508,17 +711,23 @@ function EntrouTab(): ReactNode {
 
 /* ─────────────────────────────── Contas ───────────────────────────────── */
 
-function expenseSubtitle(expense: Expense): string {
-  const category = EXPENSE_META[expense.category].label;
-  const when = expense.recurring
+function expenseWhen(expense: Expense): string {
+  return expense.recurring
     ? expense.dayOfMonth !== null
-      ? `vence todo dia ${expense.dayOfMonth}`
+      ? `todo dia ${expense.dayOfMonth}`
       : 'todo mês'
     : expense.spentOn !== null
       ? formatDayMonth(expense.spentOn)
       : 'sem data';
-  const base = `${category} · ${when}`;
-  return expense.archivedAt !== null ? `${base} · arquivada` : base;
+}
+
+function expenseSubtitle(expense: Expense): string {
+  const when = expenseWhen(expense);
+  return expense.archivedAt !== null ? `${when} · arquivada` : when;
+}
+
+function expenseLabel(expense: Expense): string {
+  return `${expense.label}, ${EXPENSE_META[expense.category].label}, ${expenseSubtitle(expense)}, ${formatCents(expense.amountCents)}`;
 }
 
 type ExpenseFormProps = {
@@ -570,7 +779,7 @@ function ExpenseForm({ initial, month, onSave, onClose }: ExpenseFormProps) {
   return (
     <>
       <TextField
-        label="Que conta é essa?"
+        label="Nome"
         value={label}
         onChangeText={setLabel}
         placeholder="Luz"
@@ -582,10 +791,10 @@ function ExpenseForm({ initial, month, onSave, onClose }: ExpenseFormProps) {
       <Field label="Categoria">
         <View style={styles.chips}>
           {EXPENSE_CATEGORIES.map((option) => (
-            <Chip
+            <PickerChip
               key={option}
               label={EXPENSE_META[option].label}
-              icon={EXPENSE_META[option].emoji}
+              icon={EXPENSE_META[option].icon}
               selected={category === option}
               onPress={() => setCategory(option)}
             />
@@ -593,33 +802,20 @@ function ExpenseForm({ initial, month, onSave, onClose }: ExpenseFormProps) {
         </View>
       </Field>
 
-      <CurrencyField
-        label="Quanto custa?"
-        cents={cents}
-        onChangeCents={setCents}
-        error={amountError}
-      />
+      <CurrencyField label="Valor" cents={cents} onChangeCents={setCents} error={amountError} />
 
-      <Field label="Chega todo mês?">
-        <SegmentedControl
-          options={RECURRING_OPTIONS}
-          value={recurring ? 'sim' : 'nao'}
-          onChange={(key) => setRecurring(key === 'sim')}
-        />
-      </Field>
+      <Segmented
+        options={RECURRING_OPTIONS}
+        value={recurring ? 'sim' : 'nao'}
+        onChange={(key) => setRecurring(key === 'sim')}
+      />
 
       <View style={styles.dayBlock}>
         <DayField
           label={recurring ? 'Vence todo dia' : 'Gastei no dia'}
           value={day}
           onChange={setDay}
-          hint={
-            recurring
-              ? 'Dia 31 vira o último dia nos meses que não têm 31.'
-              : day !== null
-                ? `Foi em ${formatDayMonth(dateInMonth(day, anchor))}.`
-                : `Dentro de ${formatMonthLong(anchor)}.`
-          }
+          hint={dayHint(day, recurring, anchor)}
         />
         {dayError ? (
           <AppText variant="small" tone="negative">
@@ -627,6 +823,8 @@ function ExpenseForm({ initial, month, onSave, onClose }: ExpenseFormProps) {
           </AppText>
         ) : null}
       </View>
+
+      {initial !== null ? <DeleteHelp text={HELP_ITEM} /> : null}
 
       <Button
         label={saving ? 'Salvando…' : 'Salvar'}
@@ -657,38 +855,28 @@ function ContasTab(): ReactNode {
   const totalCents = snapshot.expensesFixedCents + snapshot.expensesVariableCents;
 
   const save = (input: ExpenseInput): Promise<boolean> =>
-    didSave(
-      sheet.target !== null ? updateExpense(sheet.target.id, input) : addExpense(input),
-    );
+    didSave(sheet.target !== null ? updateExpense(sheet.target.id, input) : addExpense(input));
 
   function confirm(expense: Expense): void {
     if (expense.archivedAt !== null) {
-      Alert.alert(
-        expense.label,
-        'Reativar traz ela de volta para as contas do mês. Apagar some com ela de vez, inclusive dos meses passados.',
-        [
-          { text: 'Voltar', style: 'cancel' },
-          { text: 'Reativar', onPress: () => void updateExpense(expense.id, { archivedAt: null }) },
-          { text: 'Apagar', style: 'destructive', onPress: () => void removeExpense(expense.id) },
-        ],
-      );
+      Alert.alert(expense.label, 'Reativar volta a contar. Apagar some com o histórico.', [
+        { text: 'Voltar', style: 'cancel' },
+        { text: 'Reativar', onPress: () => void updateExpense(expense.id, { archivedAt: null }) },
+        { text: 'Apagar', style: 'destructive', onPress: () => void removeExpense(expense.id) },
+      ]);
       return;
     }
 
     if (expense.recurring) {
-      Alert.alert(
-        expense.label,
-        'Arquivar para de contar daqui pra frente e mantém os meses passados certos. Apagar some com ela de tudo, inclusive do histórico.',
-        [
-          { text: 'Voltar', style: 'cancel' },
-          { text: 'Arquivar', onPress: () => void archiveExpense(expense.id) },
-          { text: 'Apagar', style: 'destructive', onPress: () => void removeExpense(expense.id) },
-        ],
-      );
+      Alert.alert(expense.label, 'Arquivar mantém o histórico. Apagar não.', [
+        { text: 'Voltar', style: 'cancel' },
+        { text: 'Arquivar', onPress: () => void archiveExpense(expense.id) },
+        { text: 'Apagar', style: 'destructive', onPress: () => void removeExpense(expense.id) },
+      ]);
       return;
     }
 
-    Alert.alert(expense.label, 'Isso apaga o gasto de vez. Sem histórico, sem volta.', [
+    Alert.alert(expense.label, 'Apaga de vez, sem histórico.', [
       { text: 'Voltar', style: 'cancel' },
       { text: 'Apagar', style: 'destructive', onPress: () => void removeExpense(expense.id) },
     ]);
@@ -696,50 +884,62 @@ function ContasTab(): ReactNode {
 
   return (
     <>
-      <TotalHeader
-        label={`Contas de ${formatMonthLong(month)}`}
-        cents={totalCents}
-        caption={`Todo mês: ${formatCents(snapshot.expensesFixedCents)} · Só neste mês: ${formatCents(snapshot.expensesVariableCents)}`}
-      />
-
-      <Button label="Nova conta" icon="+" onPress={sheet.openNew} full />
+      <TotalHeader label={`Contas de ${formatMonthLong(month)}`} cents={totalCents}>
+        <Reveal label="Ver a conta">
+          <SplitLine label="Todo mês" cents={snapshot.expensesFixedCents} />
+          <SplitLine label="Só neste mês" cents={snapshot.expensesVariableCents} />
+        </Reveal>
+      </TotalHeader>
 
       {active.length > 0 ? (
-        <Card padded={false} style={styles.list}>
-          {active.map((expense) => (
-            <ListRow
-              key={expense.id}
-              title={expense.label}
-              subtitle={expenseSubtitle(expense)}
-              leading={<AppText variant="heading">{EXPENSE_META[expense.category].emoji}</AppText>}
-              trailing={<MoneyText cents={expense.amountCents} tone="neutral" />}
-              onPress={() => sheet.openEdit(expense)}
-              onLongPress={() => confirm(expense)}
-            />
-          ))}
-        </Card>
+        <>
+          <Button label="Nova conta" icon="add" onPress={sheet.openNew} full />
+
+          <View>
+            {active.map((expense) => (
+              <ListRow
+                key={expense.id}
+                title={expense.label}
+                subtitle={expenseSubtitle(expense)}
+                leading={<Icon name={EXPENSE_META[expense.category].icon} />}
+                trailing={<MoneyText cents={expense.amountCents} tone="neutral" />}
+                accessibilityLabel={expenseLabel(expense)}
+                onPress={() => sheet.openEdit(expense)}
+                onLongPress={() => confirm(expense)}
+              />
+            ))}
+          </View>
+        </>
       ) : (
-        <EmptyState
-          emoji="🧾"
-          title="Nenhuma conta aqui"
-          body="Ninguém acorda animado para cadastrar boleto, eu entendo. Mas enquanto elas não estiverem aqui, eu não consigo te dizer quanto sobra. Começa pela maior — aluguel, luz, internet."
+        <Empty
+          icon="bill"
+          title="Nenhuma conta"
+          line="Começa pela maior: aluguel, luz, internet."
+          actionLabel="Nova conta"
+          onAction={sheet.openNew}
         />
       )}
 
       {archived.length > 0 ? (
-        <ArchivedSection title="Arquivadas">
-          {archived.map((expense) => (
-            <ListRow
-              key={expense.id}
-              title={expense.label}
-              subtitle={expenseSubtitle(expense)}
-              leading={<AppText variant="heading">{EXPENSE_META[expense.category].emoji}</AppText>}
-              trailing={<MoneyText cents={expense.amountCents} tone="neutral" />}
-              onPress={() => sheet.openEdit(expense)}
-              onLongPress={() => confirm(expense)}
-            />
-          ))}
-        </ArchivedSection>
+        <View style={styles.section}>
+          <AppText variant="caption" tone="muted">
+            Arquivadas
+          </AppText>
+          <View>
+            {archived.map((expense) => (
+              <ListRow
+                key={expense.id}
+                title={expense.label}
+                subtitle={expenseSubtitle(expense)}
+                leading={<Icon name={EXPENSE_META[expense.category].icon} tone="muted" />}
+                trailing={<MoneyText cents={expense.amountCents} tone="neutral" />}
+                accessibilityLabel={expenseLabel(expense)}
+                onPress={() => sheet.openEdit(expense)}
+                onLongPress={() => confirm(expense)}
+              />
+            ))}
+          </View>
+        </View>
       ) : null}
 
       <Sheet
@@ -761,7 +961,7 @@ function ContasTab(): ReactNode {
 
 /* ───────────────────────────── Assinaturas ────────────────────────────── */
 
-const CYCLE_OPTIONS: SegmentedOption[] = [
+const CYCLE_OPTIONS: readonly SwitchOption[] = [
   { key: 'monthly', label: 'Mensal' },
   { key: 'yearly', label: 'Anual' },
 ];
@@ -782,14 +982,20 @@ const SHARE_OPTIONS: readonly { key: string; value: number | null; label: string
 ];
 
 function subscriptionSubtitle(subscription: Subscription): string {
-  const category = SUBSCRIPTION_META[subscription.category].label;
-  const cycle = subscription.cycle === 'yearly' ? 'anual' : 'mensal';
-  const parts = [category, `${cycle} · dia ${subscription.billingDay}`];
+  const parts = [
+    subscription.cycle === 'yearly'
+      ? `anual · dia ${subscription.billingDay}`
+      : `todo dia ${subscription.billingDay}`,
+  ];
   if (subscription.shareCount !== null && subscription.shareCount > 1) {
     parts.push(`rachada entre ${subscription.shareCount}`);
   }
   if (subscription.cancelledAt !== null) parts.push('cancelada');
   return parts.join(' · ');
+}
+
+function subscriptionLabel(subscription: Subscription, cents: Cents): string {
+  return `${subscription.label}, ${SUBSCRIPTION_META[subscription.category].label}, ${subscriptionSubtitle(subscription)}, ${formatCents(cents)}`;
 }
 
 type SubscriptionFormProps = {
@@ -852,10 +1058,10 @@ function SubscriptionForm({ initial, onSave, onClose }: SubscriptionFormProps) {
   return (
     <>
       <TextField
-        label="Assinatura de quê?"
+        label="Nome"
         value={label}
         onChangeText={setLabel}
-        placeholder="Streaming da série que você não termina"
+        placeholder="Netflix"
         error={labelError}
         maxLength={60}
         autoFocus={initial === null}
@@ -864,10 +1070,10 @@ function SubscriptionForm({ initial, onSave, onClose }: SubscriptionFormProps) {
       <Field label="Categoria">
         <View style={styles.chips}>
           {SUBSCRIPTION_CATEGORIES.map((option) => (
-            <Chip
+            <PickerChip
               key={option}
               label={SUBSCRIPTION_META[option].label}
-              icon={SUBSCRIPTION_META[option].emoji}
+              icon={SUBSCRIPTION_META[option].icon}
               selected={category === option}
               onPress={() => setCategory(option)}
             />
@@ -876,29 +1082,25 @@ function SubscriptionForm({ initial, onSave, onClose }: SubscriptionFormProps) {
       </Field>
 
       <CurrencyField
-        label="Quanto vem na cobrança?"
+        label="Valor da cobrança"
         cents={cents}
         onChangeCents={setCents}
         error={amountError}
-        hint={
-          cycle === 'yearly' ? 'O valor cheio da cobrança anual, não o mês dividido.' : undefined
-        }
+        hint={cycle === 'yearly' ? 'O valor cheio do ano.' : undefined}
       />
 
-      <Field label="Com que frequência cobra?">
-        <SegmentedControl
-          options={CYCLE_OPTIONS}
-          value={cycle}
-          onChange={(key) => setCycle(key === 'yearly' ? 'yearly' : 'monthly')}
-        />
-      </Field>
+      <Segmented
+        options={CYCLE_OPTIONS}
+        value={cycle}
+        onChange={(key) => setCycle(key === 'yearly' ? 'yearly' : 'monthly')}
+      />
 
       <View style={styles.dayBlock}>
         <DayField
           label="Cobra todo dia"
           value={day}
           onChange={setDay}
-          hint="Dia 31 vira o último dia nos meses que não têm 31."
+          hint={dayHint(day, true, currentMonthKey())}
         />
         {dayError ? (
           <AppText variant="small" tone="negative">
@@ -907,13 +1109,10 @@ function SubscriptionForm({ initial, onSave, onClose }: SubscriptionFormProps) {
         ) : null}
       </View>
 
-      <Field
-        label="Rachada entre quantas pessoas?"
-        hint='Contando você. Deixa em "Só eu" se você paga tudo.'
-      >
+      <Field label="Quem paga" hint="Contando você.">
         <View style={styles.chips}>
           {SHARE_OPTIONS.map((option) => (
-            <Chip
+            <PickerChip
               key={option.key}
               label={option.label}
               selected={share === option.value}
@@ -923,11 +1122,18 @@ function SubscriptionForm({ initial, onSave, onClose }: SubscriptionFormProps) {
         </View>
       </Field>
 
+      {/* O que entra na conta do mês é este número, não o da cobrança. Como
+          rótulo e valor, isso é uma linha; como frase, eram duas. */}
       {showsPreview ? (
-        <AppText variant="small" tone="secondary">
-          {`No seu mês isso pesa ${formatCents(monthlyCents)} — é esse número que entra na conta, não o da cobrança.`}
-        </AppText>
+        <Row justify="space-between">
+          <AppText variant="small" tone="muted">
+            Pesa no seu mês
+          </AppText>
+          <MoneyText cents={monthlyCents} tone="neutral" />
+        </Row>
       ) : null}
+
+      {initial !== null ? <DeleteHelp text={HELP_SUBSCRIPTION} /> : null}
 
       <Button
         label={saving ? 'Salvando…' : 'Salvar'}
@@ -963,108 +1169,107 @@ function AssinaturasTab(): ReactNode {
 
   function confirm(subscription: Subscription): void {
     if (subscription.cancelledAt !== null) {
-      Alert.alert(
-        subscription.label,
-        'Reativar volta a contar ela no seu mês. Apagar some com ela de vez, e some junto a prova de que você cortou esse gasto.',
-        [
-          { text: 'Voltar', style: 'cancel' },
-          {
-            text: 'Reativar',
-            onPress: () => void updateSubscription(subscription.id, { cancelledAt: null }),
-          },
-          {
-            text: 'Apagar',
-            style: 'destructive',
-            onPress: () => void removeSubscription(subscription.id),
-          },
-        ],
-      );
-      return;
-    }
-
-    Alert.alert(
-      subscription.label,
-      'Cancelei para de contar daqui pra frente e guarda no histórico que você cortou. Apagar some com ela de tudo, como se nunca tivesse existido.',
-      [
+      Alert.alert(subscription.label, 'Reativar volta a contar. Apagar some com o histórico.', [
         { text: 'Voltar', style: 'cancel' },
-        { text: 'Cancelei', onPress: () => void cancelSubscription(subscription.id) },
+        {
+          text: 'Reativar',
+          onPress: () => void updateSubscription(subscription.id, { cancelledAt: null }),
+        },
         {
           text: 'Apagar',
           style: 'destructive',
           onPress: () => void removeSubscription(subscription.id),
         },
-      ],
-    );
+      ]);
+      return;
+    }
+
+    Alert.alert(subscription.label, '"Cancelei" mantém o histórico. Apagar não.', [
+      { text: 'Voltar', style: 'cancel' },
+      { text: 'Cancelei', onPress: () => void cancelSubscription(subscription.id) },
+      {
+        text: 'Apagar',
+        style: 'destructive',
+        onPress: () => void removeSubscription(subscription.id),
+      },
+    ]);
   }
 
   return (
     <>
-      <TotalHeader
-        label="Assinaturas, por mês"
-        cents={snapshot.subscriptionsCents}
-        caption={
-          hasIncome
-            ? `${formatPercent(share)} da sua renda · o saudável é ficar abaixo de 10%`
-            : 'Cadastra sua renda em "Entrou" e eu te digo o quanto isso pesa.'
-        }
-      >
+      <TotalHeader label="Assinaturas, por mês" cents={snapshot.subscriptionsCents}>
         {heavy ? (
-          <View style={styles.badge}>
-            <Badge severity="warning" label="Cancela uma. Só uma." />
+          <View style={styles.alert}>
+            <Badge severity="warning" label={`${formatPercent(share)} da renda`} />
+            <AppText variant="small" tone="secondary">
+              Acima de 10% já pesa. Cancela uma — só uma.
+            </AppText>
           </View>
-        ) : null}
+        ) : (
+          <AppText variant="small" tone="muted">
+            {hasIncome ? `${formatPercent(share)} da renda` : 'Cadastra sua renda em Entrou.'}
+          </AppText>
+        )}
       </TotalHeader>
 
-      <Button label="Nova assinatura" icon="+" onPress={sheet.openNew} full />
-
       {active.length > 0 ? (
-        <Card padded={false} style={styles.list}>
-          {active.map((subscription) => (
-            <ListRow
-              key={subscription.id}
-              title={subscription.label}
-              subtitle={subscriptionSubtitle(subscription)}
-              leading={
-                <AppText variant="heading">{SUBSCRIPTION_META[subscription.category].emoji}</AppText>
-              }
+        <>
+          <Button label="Nova assinatura" icon="add" onPress={sheet.openNew} full />
+
+          <View>
+            {active.map((subscription) => {
               // O valor da linha é o que a assinatura pesa NO MÊS, não o que
               // aparece na cobrança: anual e rachada mentiriam contra o total
               // do cabeçalho, que soma exatamente isto.
-              trailing={
-                <MoneyText cents={subscriptionMonthlyCents(subscription)} tone="neutral" />
-              }
-              onPress={() => sheet.openEdit(subscription)}
-              onLongPress={() => confirm(subscription)}
-            />
-          ))}
-        </Card>
+              const monthlyCents = subscriptionMonthlyCents(subscription);
+              return (
+                <ListRow
+                  key={subscription.id}
+                  title={subscription.label}
+                  subtitle={subscriptionSubtitle(subscription)}
+                  leading={<Icon name={SUBSCRIPTION_META[subscription.category].icon} />}
+                  trailing={<MoneyText cents={monthlyCents} tone="neutral" />}
+                  accessibilityLabel={subscriptionLabel(subscription, monthlyCents)}
+                  onPress={() => sheet.openEdit(subscription)}
+                  onLongPress={() => confirm(subscription)}
+                />
+              );
+            })}
+          </View>
+        </>
       ) : (
-        <EmptyState
-          emoji="📺"
+        <Empty
+          icon="tv"
           title="Nenhuma assinatura"
-          body="Ou você não assina nada, ou esqueceu de alguma. Estatisticamente, é a segunda. Abre a fatura do mês passado e cadastra o que aparecer — é o gasto que mais some do radar."
+          line="Abre a fatura do mês passado e confere."
+          actionLabel="Nova assinatura"
+          onAction={sheet.openNew}
         />
       )}
 
       {cancelled.length > 0 ? (
-        <ArchivedSection title="Canceladas">
-          {cancelled.map((subscription) => (
-            <ListRow
-              key={subscription.id}
-              title={subscription.label}
-              subtitle={subscriptionSubtitle(subscription)}
-              leading={
-                <AppText variant="heading">{SUBSCRIPTION_META[subscription.category].emoji}</AppText>
-              }
-              // Aqui é a cobrança crua, não o peso mensal: `subscriptionMonthlyCents`
-              // devolve 0 para cancelada (e está certo — ela não pesa mais no mês).
-              // Uma lista de "R$ 0,00" não contaria nada sobre o que foi cortado.
-              trailing={<MoneyText cents={subscription.amountCents} tone="neutral" />}
-              onPress={() => sheet.openEdit(subscription)}
-              onLongPress={() => confirm(subscription)}
-            />
-          ))}
-        </ArchivedSection>
+        <View style={styles.section}>
+          <AppText variant="caption" tone="muted">
+            Canceladas
+          </AppText>
+          <View>
+            {cancelled.map((subscription) => (
+              <ListRow
+                key={subscription.id}
+                title={subscription.label}
+                subtitle={subscriptionSubtitle(subscription)}
+                leading={<Icon name={SUBSCRIPTION_META[subscription.category].icon} tone="muted" />}
+                // Aqui é a cobrança crua, não o peso mensal: `subscriptionMonthlyCents`
+                // devolve 0 para cancelada (e está certo — ela não pesa mais no mês).
+                // Uma lista de "R$ 0,00" não contaria nada sobre o que foi cortado.
+                trailing={<MoneyText cents={subscription.amountCents} tone="neutral" />}
+                accessibilityLabel={subscriptionLabel(subscription, subscription.amountCents)}
+                onPress={() => sheet.openEdit(subscription)}
+                onLongPress={() => confirm(subscription)}
+              />
+            ))}
+          </View>
+        </View>
       ) : null}
 
       <Sheet
@@ -1087,7 +1292,7 @@ function AssinaturasTab(): ReactNode {
 
 type Tab = 'entrou' | 'contas' | 'assinaturas';
 
-const TABS: SegmentedOption[] = [
+const TABS: readonly SwitchOption[] = [
   { key: 'entrou', label: 'Entrou' },
   { key: 'contas', label: 'Contas' },
   { key: 'assinaturas', label: 'Assinaturas' },
@@ -1097,6 +1302,11 @@ function toTab(key: string): Tab {
   return key === 'contas' ? 'contas' : key === 'assinaturas' ? 'assinaturas' : 'entrou';
 }
 
+/**
+ * Sem título "Grana": a barra de abas embaixo já diz onde a pessoa está, e um
+ * "Grana" em `title` do lado do total em `title` são dois títulos brigando pelo
+ * mesmo posto. O número é o título desta tela.
+ */
 export default function GranaScreen(): ReactNode {
   const [tab, setTab] = useState<Tab>('entrou');
   const error = useArrego((s) => s.error);
@@ -1104,9 +1314,7 @@ export default function GranaScreen(): ReactNode {
   return (
     <Screen scroll>
       <View style={styles.screen}>
-        <AppText variant="title">Grana</AppText>
-
-        <SegmentedControl options={TABS} value={tab} onChange={(key) => setTab(toTab(key))} />
+        <Segmented options={TABS} value={tab} onChange={(key) => setTab(toTab(key))} />
 
         {/* A store engole a exceção da escrita e a transforma em `error`. Sem
             este bloco, um item que não gravou vira uma folha que fecha e uma
@@ -1129,13 +1337,50 @@ export default function GranaScreen(): ReactNode {
 }
 
 const styles = StyleSheet.create({
-  screen: { gap: spacing.lg },
-  header: { gap: spacing.xs },
-  badge: { marginTop: spacing.sm },
-  list: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, gap: spacing.xs },
-  section: { gap: spacing.xs },
-  sectionNote: { marginBottom: spacing.sm },
+  // `xl` e não `lg`: o que separa um assunto do outro nesta tela é o ar, já que
+  // não sobrou borda nenhuma para fazer esse trabalho.
+  screen: { gap: spacing.xl },
+  head: { gap: spacing.xs },
+  alert: { gap: spacing.xs, marginTop: spacing.xs },
+  section: { gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   dayBlock: { gap: spacing.xs },
   error: { gap: spacing.sm },
+
+  switch: {
+    flexDirection: 'row',
+    padding: spacing.xs / 2,
+    borderRadius: radius.pill,
+    gap: spacing.xs / 2,
+  },
+  segment: {
+    flex: 1,
+    minHeight: MIN_TOUCH,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  segmentLabel: { fontWeight: '600' },
+
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    minHeight: 34,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  chipLabel: { fontWeight: '600', flexShrink: 1 },
+
+  empty: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xxl,
+  },
+  emptyAction: { marginTop: spacing.sm },
+  centered: { textAlign: 'center' },
+
+  pressed: { opacity: 0.65 },
 });

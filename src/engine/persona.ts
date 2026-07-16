@@ -449,3 +449,288 @@ export const LINES = {
     'Reservei {valor} pra você gastar à toa. À toa mesmo: sem justificar, sem anotar como "investimento em bem-estar". {pct} da renda com destino "viver". Quem não faz isso de propósito acaba fazendo por impulso, no dobro do valor e com culpa de sobremesa. Escolhe uma coisa boa e gasta.',
   ],
 } as const satisfies LineBank;
+
+/**
+ * A versão de TELA das falas. `LINES` não sai de cena: ela continua sendo a voz
+ * inteira da Arrego, e o lugar dela é /conversa, onde texto É o conteúdo.
+ *
+ * Aqui a régua é `textBudget.personaLine`: 90 caracteres, uma linha. Não é
+ * economia de bytes, é confiança. Tela de dinheiro com três parágrafos de
+ * personagem não lê como app sério — lê como golpe, que foi literalmente o
+ * veredito sobre a versão anterior. App sério mostra o número e cala a boca;
+ * quem se explica em três parágrafos é quem está vendendo alguma coisa.
+ *
+ * O contrato de tom do topo do arquivo vale INTEIRO aqui, com duas emendas:
+ *
+ * 1. A SAÍDA PRÁTICA VIRA O BOTÃO. Em `LINES` toda fala termina com a saída
+ *    porque lá ela é a única coisa na bolha. Em 90 caracteres, espremer conselho
+ *    no fim de toda linha mata a piada e devolve o ruído que viemos cortar. Na
+ *    tela a saída já existe, com rótulo próprio e alvo de toque: é o botão do
+ *    insight. A fala aponta pro número, o botão resolve. Quando a saída couber
+ *    sem custar a graça, ela fica; quando não couber, ela é do botão.
+ * 2. Mínimo de 4 variações por banco (em `LINES` são 6). Fala curta tem menos
+ *    superfície pra repetição ficar óbvia.
+ *
+ * O que NÃO muda: a ironia é sobre o NÚMERO, nunca sobre a pessoa; vitória é
+ * limpa (`goalAchieved`); e onde a conta já dói sozinha (`negativeFlow`,
+ * `planImpossible`, `planGoalStarved`) o deboche não entra. Cortar não é
+ * licença pra ficar grosso — fala curta é mais difícil E mais engraçada que
+ * fala longa, porque piada boa não explica.
+ *
+ * PLACEHOLDERS: cada banco só usa as chaves que quem chama realmente preenche.
+ * `fill` deixa `{chave}` órfã VISÍVEL na tela de propósito, então inventar um
+ * {valor} aqui não vira texto ruim, vira bug na cara do usuário. O conjunto por
+ * banco é o mesmo de `LINES`: `planReady` fala das três fatias com nome próprio
+ * ({reserva}/{objetivos}/{lazer}) e `planGoalStarved` não tem {valor}, porque
+ * quem o chama não passa um.
+ *
+ * O `satisfies Record<keyof typeof LINES, ...>` amarra os dois bancos: banco
+ * novo em `LINES` não compila até ganhar a versão curta, e chave inventada aqui
+ * também não compila. Sem essa amarra, `SHORT` envelheceria em silêncio — que é
+ * exatamente como um app volta a falar demais.
+ */
+export const SHORT = {
+  /** Sem renda não há régua, e sem régua nenhum outro número significa nada. */
+  noIncome: [
+    'Você me contou o que gasta. Faltou a parte de onde vem o dinheiro.',
+    'Renda cadastrada: nenhuma. Estou assumindo fé e boa vontade.',
+    'Sem renda eu não tenho régua. R$ 200 é muito ou é pouco? Não faço ideia.',
+    '{nome}, sem saber o que entra, toda conta que eu fizer dá zero.',
+    'Todo mundo aqui está esperando você dizer quanto ganha. Inclusive eu.',
+  ],
+
+  /** Mês no vermelho: o deboche sai de cena, a conta já dói sozinha. */
+  negativeFlow: [
+    'Faltam {valor} pra fechar o mês. Não é fracasso, é aritmética.',
+    'Você gastou {valor} a mais do que ganhou. Acontece. Mas não de novo.',
+    '{valor} é o tamanho do buraco. Não vou fingir que é pouco.',
+    'Suas contas passam a renda em {valor}. Sei que você já sabia.',
+    '{nome}, o mês fecha {valor} no vermelho. Falta uma decisão. Uma.',
+  ],
+
+  /** Fecha no zero a zero: sobra existe, mas não aguenta imprevisto. */
+  tightFlow: [
+    'Sobram {valor}. {pct} da renda. Um mês sem margem pra nada dar errado.',
+    '{pct} de folga não aguenta pneu furado. E pneu fura.',
+    'Você fecha no zero a zero. Sobrar {valor} é sobreviver, não é planejar.',
+    'Sua margem é {pct}. Todo mês dá certo por sorte. Sorte não é estratégia.',
+    '{nome}, {pct} dá pra dizer "tá tranquilo". Não dá pra estar.',
+  ],
+
+  /** O gasto que ninguém vê sair. Ironia no automático, não na pessoa. */
+  subscriptionHeavy: [
+    '{valor} em assinaturas. {pct} do seu salário. Só estou deixando aqui.',
+    '{qtd}, {valor} por mês, {pct} da renda. Sem julgamento. Só o número.',
+    '{pct} da sua renda sai sozinha todo mês, sem te avisar. {qtd}.',
+    'Tem {qtd} aí. Alguma você esqueceu que assinou. Ela não esqueceu de você.',
+    '{valor} por mês em {qtd}. O total do ano eu prefiro não calcular hoje.',
+  ],
+
+  /** Parcelar não é crime e não vira piada sobre quem parcelou. */
+  cardHeavy: [
+    '{pct} da renda já tem dono: {valor} em parcelas.',
+    '{valor} por mês em parcelas. Seu eu do passado cobrando aluguel.',
+    'Você já gastou {valor}. Está só pagando em câmera lenta.',
+    '{pct} da sua renda acorda comprometida. Parcela não é crime, é fila.',
+    '{nome}, {pct} em parcelas aperta sem fazer barulho. Vem daqui: {valor}.',
+  ],
+
+  /** Guardando bem. Reconhece sem bajular — e reclama de ficar sem assunto. */
+  goodSavings: [
+    '{pct} de sobra. Isso é bom. Estou desconfortável com isso.',
+    'Você guarda {pct}. Me deixou sem assunto. Parabéns, eu acho.',
+    '{valor} soltos na conta. Dinheiro sem nome some sem explicação.',
+    'Sobrar {pct} não foi sorte, foi escolha. Reconhecido.',
+    '{nome}, sua taxa é {pct}. Não vou fazer piada: eu sei perder.',
+  ],
+
+  /** Existe, mas ainda não conta. */
+  lowSavings: [
+    'Você guarda {pct}. Nesse ritmo, um mês ruim apaga três meses bons.',
+    'Sobram {valor}. É o começo de alguma coisa. Não confunda com resolvido.',
+    '{pct}: o suficiente pra dizer que guarda, não pra que isso importe.',
+    'Sobra {valor} por mês. Doze meses disso não pagam um susto médio.',
+    '{nome}, {pct} é o esforço que quase conta. Quase.',
+  ],
+
+  /** {valor} é o ALVO da reserva, nunca um depósito. */
+  noEmergencyFund: [
+    'Reserva de emergência: {valor}. Por enquanto, uma ideia abstrata.',
+    'A vida real quebra geladeira sem avisar. Seu número é {valor}.',
+    'Sem reserva você não tem plano, tem esperança. Alvo: {valor}.',
+    '{valor} é a meta mais chata daqui e a única que salva sua pele.',
+    '{nome}, sua reserva é {valor} e ela não existe. Começa com R$ 20.',
+  ],
+
+  /** Dinheiro sem destino sempre acha um. */
+  noGoals: [
+    'Zero metas. Seu dinheiro vai pro que aparecer. E sempre aparece algo.',
+    'Dinheiro sem destino vira delivery. Não é filosofia, é estatística.',
+    '{nome}, sem alvo todo tiro acerta o nada.',
+    'Nenhuma meta. Nenhum plano. Nenhuma pressa, aparentemente.',
+    'Sobra sem meta é só um saldo esperando um motivo pra ir embora.',
+  ],
+
+  /** Existe um ETA, só que ruim. A piada é com o prazo, não com quem o escolheu. */
+  goalTooSlow: [
+    'No seu ritmo, {meta} chega em {tempo}. Seus netos agradecem.',
+    '{meta} em {tempo}. Seu prazo discorda. Um de vocês está mentindo.',
+    'Você quer {meta} numa data. A matemática quer {tempo}. Ela costuma ganhar.',
+    'Faltam {valor} por mês em {meta}. Vontade não deposita.',
+    '{meta}: {tempo} no ritmo de hoje. Sobe {valor} ou muda a data. As duas valem.',
+  ],
+
+  /** Ritmo zero. "Nunca" é multiplicação, não sentença — e a fala precisa dizer isso. */
+  goalNeverAtPace: [
+    'Seu ritmo em {meta} é zero. Zero vezes qualquer coisa continua zero.',
+    '{meta} chega nunca. Não é sentença, é multiplicação.',
+    'Sem depósito {meta} não anda. Ninguém chega a lugar nenhum parado.',
+    'A projeção de {meta} deu "nunca". Qualquer valor conserta. Qualquer um.',
+    '{nome}, {meta} está parada. {valor} por mês tiram o "nunca" da conta.',
+  ],
+
+  /** No prazo. O risco agora é o tédio, não o dinheiro. */
+  goalOnTrack: [
+    '{meta} chega em {tempo} se você não fizer nada de diferente. Não faça.',
+    '{meta} está no prazo. Eu queria ter algo sarcástico pra dizer e não tenho.',
+    '{valor} por mês, {tempo} pra chegar. Meta que dá certo é chata. Aguenta.',
+    '{meta} no prazo. Não mexe: "reorganizar" é como se perde uma meta.',
+    '{tempo} pra {meta}, zero surpresas. Só não para.',
+  ],
+
+  /** Vitória é limpa: aqui o sarcasmo não entra, nem disfarçado de elogio. */
+  goalAchieved: [
+    'Você bateu {meta}. {valor}, depósito por depósito. Isso foi você.',
+    '{meta} está no bolso: {valor} completos. Você disse que ia fazer e fez.',
+    '{nome}, você bateu {meta}. Sem "mas", sem lição de moral. Comemora.',
+    'Meta batida: {meta}. Agora você tem prova de que consegue.',
+    '{valor} guardados, {meta} conquistada. Essa é sua. Limpa e inteira.',
+  ],
+
+  /** Tela vazia tem exatamente um próximo passo — e ele é o botão. */
+  emptyState: [
+    'O app está vazio. Eu também: sem dados, não tenho opinião nenhuma.',
+    '{nome}, zero dados, zero comentários maldosos meus. Aproveita a paz.',
+    'Não tem nada aqui ainda. Nem renda, nem conta, nem meta. Nem eu.',
+    'A tela vazia é o único estado em que dinheiro parece simples.',
+    'Você não me deu nada, então não tenho nada pra dizer. É justo.',
+  ],
+
+  /** Nenhuma regra disparou. Ela odeia não ter o que reclamar. */
+  allGood: [
+    'Procurei um motivo pra te encher o saco e não achei. Sobram {valor}.',
+    'Está tudo em ordem. Estou levemente irritada com isso.',
+    'Sua vida financeira está entediante. É o maior elogio que existe aqui.',
+    '{nome}, conferi duas vezes. Sem alarme, sem vermelho, sem sermão.',
+    'Tudo certo, {valor} de folga. Um mês raro em que eu não tenho assunto.',
+  ],
+
+  /** Dados velhos: a análise vira ficção. Sem cobrança, a pessoa voltou. */
+  lazyUser: [
+    'Faz {tempo} que você não atualiza nada. Seu dinheiro não esperou.',
+    'Estes números são de {tempo} atrás. Ou seja: são ficção.',
+    '{tempo} sem aparecer. Eu não guardo mágoa, guardo dados. Os seus venceram.',
+    'Olha quem apareceu. Seus números estão parados há {tempo}.',
+    '{nome}, opinar sobre uma vida financeira de {tempo} atrás é chute.',
+  ],
+
+  // ─────────────────────────── O PLANO DO MÊS ────────────────────────────
+
+  /** As três fatias na mesma frase: cada uma com nome próprio, nunca {valor}. */
+  planReady: [
+    '{reserva} reserva, {objetivos} metas, {lazer} lazer. Procurei o erro. Não tem.',
+    'Seu dinheiro tem endereço: {reserva}, {objetivos} e {lazer}. Agora é executar.',
+    'Coube tudo: {reserva}, {objetivos} e {lazer} pra viver sem culpa.',
+    '{nome}: {reserva} protege, {objetivos} leva, {lazer} mantém você aqui.',
+    'Plano na tela rende 0%. {reserva}, {objetivos}, {lazer} — move hoje.',
+  ],
+
+  /** Fecha raspando. Reconhece a organização sem chamar de conforto. */
+  planTight: [
+    'O plano fecha. Fecha raspando: {valor}, {pct} da renda.',
+    'Dividir {valor} entre três é dividir um pão de queijo entre três pessoas.',
+    '{pct} de margem. O plano cabe do jeito que mala fecha: sentando em cima.',
+    '{valor} pra repartir. As fatias saem magras. Magras e existindo.',
+    '{nome}, {valor} é o que tem hoje. Prefiro dividir pouco a fingir que é muito.',
+  ],
+
+  /** Vermelho: nenhuma piada de deboche. Quem está aqui já sabe que está. */
+  planImpossible: [
+    'Não tem o que dividir: faltam {valor}. Plano existe depois que sobra.',
+    'Sobra zero é um estado do mês, não um veredito sobre você. Faltam {valor}.',
+    '{valor} precisam sair das contas antes de o plano nascer. É a ordem das coisas.',
+    'O plano está vazio porque o mês está {valor} no vermelho.',
+    '{nome}, dividir dinheiro que não existe é o que o cartão faz. Faltam {valor}.',
+  ],
+
+  /** {valor} é o ALVO da reserva — mesma convenção de `noEmergencyFund`. */
+  planNoEmergency: [
+    'Seu plano tem meta, tem lazer e não tem chão. Reserva: {valor}.',
+    'Dá pra dividir sem reserva. Dá pra andar de moto sem capacete também.',
+    'Falta a peça que sustenta o resto: {valor} de reserva.',
+    'Sem reserva, isso é uma lista de intenções bem formatada. Alvo: {valor}.',
+    '{nome}, a reserva não compete com seus sonhos, ela protege eles. Alvo: {valor}.',
+  ],
+
+  /** {valor} é o depósito mensal, {tempo} o prazo até encher. */
+  planEmergencyEta: [
+    '{valor} por mês: reserva cheia em {tempo}. Não é rápido. Termina.',
+    '{tempo} passam de qualquer jeito. A diferença é ter dinheiro lá no fim.',
+    'Reserva completa em {tempo} no ritmo de {valor}. Sem atalho, sem milagre.',
+    '{nome}, {tempo} até você parar de depender de sorte.',
+    'Cada {valor} depositado é um pedaço de susto que não vira dívida.',
+  ],
+
+  /**
+   * Meta com R$ 0 no mês. Só {nome} e {meta}: quem chama não passa {valor}, e um
+   * {valor} órfão apareceria cru na tela. Limite de aritmética não é falha de
+   * caráter — sem crueldade e sem cobrança.
+   */
+  planGoalStarved: [
+    '{meta} ficou com R$ 0. A sobra acabou antes de chegar nela.',
+    'Esse mês {meta} não recebeu nada. Não é castigo, é fila.',
+    'Migalha em todas as metas é o jeito eficiente de não terminar nenhuma.',
+    '{meta} está atrás de outra que termina antes. Não perde o que já juntou.',
+    '{nome}, a fila é sua, não minha. {meta} espera a vez.',
+  ],
+
+  /** {valor} é o que existe pra repartir, não a sobra inteira. */
+  planTooManyGoals: [
+    'Meta demais disputando {valor}. Cada uma anda um centímetro por mês.',
+    'Tem mais sonho do que sobra: {valor} não esticam.',
+    'Ambição eu aprovo, aritmética não me deixa. {valor} não dão pra todas.',
+    'Progresso invisível é o que faz gente desistir. {valor} pra tanta meta.',
+    '{nome}, sonhar em série rende mais que sonhar em paralelo.',
+  ],
+
+  /** Defende uma decisão de produto: a cena concreta, nunca "estudos mostram". */
+  planLeisureDefense: [
+    '{valor} pro lazer. Não foi erro de conta: plano que proíbe tudo dura 11 dias.',
+    'Sim, eu estou te mandando gastar {valor}. Dieta radical acaba na geladeira.',
+    '{pct} da renda pra viver. É essa parte que mantém o resto de pé.',
+    '{valor} pra torrar à toa. Sem justificar, sem anotar como bem-estar.',
+    '{nome}, lazer que é "o que sobrar" vira zero. Por isso {pct} vem antes.',
+  ],
+} as const satisfies Record<keyof typeof LINES, readonly string[]>;
+
+/**
+ * Atalho de tela: escolhe a fala curta e preenche, numa chamada só.
+ *
+ * A chave entra na seed junto com o que veio de fora, então a tela passa a seed
+ * do mês crua (`hashSeed(month)`) e não precisa lembrar de misturar o nome do
+ * banco pra dois bancos não caírem no mesmo índice. Onde a fala é POR ITEM —
+ * uma meta atrasada embaixo da outra — a seed ainda precisa carregar o id:
+ * `shortLine('goalTooSlow', hashSeed(month, goal.id), vars)`. Sem o id, duas
+ * metas recebem a mesma frase lado a lado e a personagem desmonta na hora.
+ *
+ * `vars` é opcional porque banco sem placeholder (`emptyState`, `noGoals`) não
+ * deveria ser obrigado a passar `{}`. Chave sem valor continua saindo como
+ * `{chave}` na tela, de propósito: bug visível é bug consertado.
+ */
+export function shortLine(
+  key: keyof typeof SHORT,
+  seed: number,
+  vars?: Record<string, string>,
+): string {
+  return fill(pickLine(SHORT[key], hashSeed(seed, key)), vars ?? {});
+}

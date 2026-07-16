@@ -1,11 +1,23 @@
 /**
- * Sua conta — perfil e a promessa de privacidade escrita com todas as letras,
- * incluindo a parte ruim.
+ * Sua conta — avatar, quatro linhas e a versão. É isso.
  *
- * O card "Seus dados" não é texto de marketing: é a descrição literal de como o
- * app funciona. Não existe servidor, então não existe backup, então trocar de
- * celular perde tudo. Um app que só conta a metade boa dessa escolha está
- * mentindo por omissão, e a pessoa só descobre no dia em que já era tarde.
+ * A tela era uma pilha de cards com 832 caracteres de texto aberto: um
+ * parágrafo triplo de privacidade, outro explicando o que "apagar tudo" apaga,
+ * e um recado da Arrego no rodapé. Nada disso sumiu — mudou de lugar:
+ *
+ *   - a explicação de privacidade INTEIRA está no `Reveal` "Seus dados",
+ *     fechada por padrão (é o único jeito honesto de manter a parte ruim: não
+ *     existe backup, trocou de celular perdeu tudo — quem quiser ler, lê);
+ *   - o que "apagar tudo" apaga está no Alert de confirmação, que é onde o
+ *     texto vira proteção em vez de ruído — ali ele é lido, aqui era ignorado;
+ *   - o recado do rodapé era tempero, não informação. Esse saiu.
+ *
+ * Sem amarelo nesta tela. O único ponto de cor é o avatar, que é a pessoa.
+ * O `DayField` (dia selecionado em amarelo) mora dentro de uma folha, atrás de
+ * um toque, e não na tela.
+ *
+ * O título "Sua conta" vem do header do Stack (app/_layout.tsx). A versão
+ * anterior o repetia no corpo, então a tela dizia "Sua conta" duas vezes.
  */
 
 import Constants from 'expo-constants';
@@ -22,12 +34,15 @@ import {
   Button,
   Card,
   DayField,
-  EmptyState,
+  Icon,
+  ListRow,
+  Reveal,
   Screen,
   Sheet,
   TextField,
 } from '@/ui';
 
+/** A cara é escolha da pessoa: emoji aqui é conteúdo, não enfeite de interface. */
 const AVATAR_EMOJIS = [
   '🙂', '😎', '🤨', '🫠', '🥲', '🤑', '🧠', '🔥',
   '🐢', '🦆', '🐈', '🦖', '🌵', '🍀', '🍕', '🧃',
@@ -40,6 +55,10 @@ const AVATAR_EMOJIS = [
  * diferente: dá pra perguntar de novo, ou só os ajustes do aparelho resolvem.
  * Nos dois casos o emoji continua sendo um caminho inteiro — negar acesso não
  * pode virar beco sem saída.
+ *
+ * Aqui o texto continua explícito de propósito: um Alert é lido, e ele precisa
+ * dizer o que aconteceu e qual é a saída. O orçamento de texto corta o que está
+ * ABERTO na tela, não o que a pessoa parou para ler.
  */
 function explainDeniedGallery(canAskAgain: boolean): void {
   if (canAskAgain) {
@@ -77,6 +96,8 @@ export default function PerfilScreen() {
   // `useState(profile.name)` cru congelaria o nome do primeiro render e ficaria
   // desatualizado quando a hidratação terminasse.
   const [draftName, setDraftName] = useState<string | null>(null);
+  const [nameOpen, setNameOpen] = useState(false);
+  const [paydayOpen, setPaydayOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -95,6 +116,17 @@ export default function PerfilScreen() {
     await saveProfile({ name: trimmed });
     setDraftName(null);
   }, [draftName, name, saveProfile]);
+
+  /**
+   * Fechar a folha grava, igual sair do campo gravava antes. São os dois jeitos
+   * de "terminar de digitar", e nenhum deles é um botão Salvar: o campo já
+   * salvava sozinho no onBlur e continuar assim mantém o comportamento — e
+   * mantém a folha sem um botão amarelo que esta tela não pode ter.
+   */
+  const closeName = useCallback(() => {
+    void commitName();
+    setNameOpen(false);
+  }, [commitName]);
 
   const pickPhoto = useCallback(async () => {
     if (name === '') return;
@@ -160,10 +192,15 @@ export default function PerfilScreen() {
     router.replace('/onboarding');
   }, [wipeEverything]);
 
+  /**
+   * O parágrafo que ficava aberto na tela mora aqui. É a única lista completa do
+   * que some, e ela aparece no exato momento em que a pessoa pode desistir —
+   * que é o único momento em que ela vai ler.
+   */
   const confirmWipe = useCallback(() => {
     Alert.alert(
       'Apagar tudo mesmo?',
-      'Isso apaga todas as suas contas, metas e parcelas. Não tem volta.',
+      'Some com o arquivo inteiro: perfil, renda, contas, assinaturas, cartões, parcelas e metas. O app volta a ser uma tela em branco, como no primeiro dia. Não tem desfazer.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -180,13 +217,16 @@ export default function PerfilScreen() {
   if (profile === null) {
     return (
       <Screen scroll>
-        <EmptyState
-          emoji="👻"
-          title="Não tem conta aqui ainda"
-          body="Nenhum perfil foi criado neste aparelho. Leva um minuto e é só um nome — sem e-mail, sem senha, sem nuvem."
-          actionLabel="Criar minha conta"
-          onAction={() => router.replace('/onboarding')}
-        />
+        <View style={styles.empty}>
+          <Icon name="profile" size={32} tone="muted" />
+          <AppText variant="title" style={styles.centered}>
+            Não tem conta aqui ainda
+          </AppText>
+          <AppText variant="body" tone="secondary" style={styles.centered}>
+            Leva um minuto. Sem e-mail, sem senha, sem nuvem.
+          </AppText>
+          <Button label="Criar minha conta" onPress={() => router.replace('/onboarding')} />
+        </View>
       </Screen>
     );
   }
@@ -196,16 +236,15 @@ export default function PerfilScreen() {
   return (
     <Screen scroll>
       <View style={styles.page}>
-        <AppText variant="title">Sua conta</AppText>
-
         {error !== null ? (
-          <Card style={styles.stack}>
-            <AppText variant="caption" tone="secondary">
-              Deu ruim
-            </AppText>
-            <AppText variant="small" tone="negative">
-              {error}
-            </AppText>
+          <Card>
+            <View style={styles.errorRow}>
+              {/* Ícone + texto: a cor sozinha não conta nada a quem não a distingue. */}
+              <Icon name="alert" size={18} color={colors.status.critical} />
+              <AppText variant="small" tone="negative" style={styles.grow}>
+                {error}
+              </AppText>
+            </View>
           </Card>
         ) : null}
 
@@ -222,7 +261,7 @@ export default function PerfilScreen() {
           <View style={styles.identityActions}>
             <Button
               label="Trocar foto"
-              icon="📷"
+              icon="camera"
               variant="secondary"
               disabled={busy}
               onPress={() => {
@@ -231,7 +270,7 @@ export default function PerfilScreen() {
             />
             <Button
               label="Trocar emoji"
-              icon="🙃"
+              icon="edit"
               variant="secondary"
               disabled={busy}
               onPress={() => setEmojiOpen(true)}
@@ -239,7 +278,7 @@ export default function PerfilScreen() {
           </View>
           {profile.photoUri !== null ? (
             <Button
-              label="Remover foto e voltar pro emoji"
+              label="Remover foto"
               variant="ghost"
               disabled={busy}
               onPress={() => {
@@ -249,71 +288,102 @@ export default function PerfilScreen() {
           ) : null}
         </View>
 
-        <Card style={styles.stack}>
-          <TextField
-            label="Como eu te chamo?"
-            value={shownName}
-            onChangeText={setDraftName}
-            onBlur={() => {
-              void commitName();
-            }}
-            placeholder="Seu nome"
-            hint="Só o primeiro nome já serve. É assim que eu falo com você."
-            maxLength={40}
+        {/*
+          Os dois campos viraram linha + valor à direita. O `DayField` é uma
+          grade de 31 alvos de toque: aberto na tela ele É a tela, então ele vai
+          pra folha. O valor na direita já responde "que dia mesmo?" sem abrir
+          nada.
+        */}
+        <Card>
+          <ListRow
+            title="Seu nome"
+            leading={<Icon name="profile" />}
+            trailing={
+              <AppText variant="small" tone="muted" numberOfLines={1}>
+                {shownName}
+              </AppText>
+            }
+            onPress={() => setNameOpen(true)}
+            divider
           />
-          <DayField
-            label="Que dia o dinheiro cai?"
-            value={profile.payday}
-            onChange={(day) => {
-              void savePayday(day);
-            }}
-            hint="É o dia em que o seu mês financeiro começa. Não sabe ou não tem dia fixo? Deixa em branco — dá pra viver sem."
+          <ListRow
+            title="Dia que o dinheiro cai"
+            leading={<Icon name="calendar" />}
+            trailing={
+              <AppText variant="small" tone="muted" numberOfLines={1}>
+                {profile.payday !== null ? `Dia ${profile.payday}` : 'Não definido'}
+              </AppText>
+            }
+            onPress={() => setPaydayOpen(true)}
           />
         </Card>
 
-        <Card style={styles.stack}>
-          <AppText variant="subheading">🔒 Seus dados</AppText>
-          <AppText variant="small" tone="secondary">
-            Tudo que você digita aqui fica salvo dentro deste aparelho, num arquivo que só o Arrego
-            abre. Não existe servidor, não existe conta na nuvem, não existe login e não existe
-            e-mail. Sua renda, suas dívidas, suas metas e sua foto não são enviadas pra lugar
-            nenhum, porque não tem pra onde enviar: o app não sabe conversar com a internet.
-          </AppText>
-          <AppText variant="small" tone="secondary">
-            Ninguém da Locomotiva vê isso. Nenhum anunciante vê isso. Eu não vendo, não compartilho
-            e não analiso seus dados em lugar nenhum — não por bondade, mas porque eles nunca saem
-            daí de dentro.
-          </AppText>
-          <AppText variant="small">
-            E agora a parte ruim, que eu não vou esconder de você: como não existe cópia em lugar
-            nenhum, também não existe recuperação. Trocou de celular, perdeu. Perdeu o celular,
-            perdeu. Desinstalou o app, perdeu. Formatou, perdeu. Não tem "esqueci minha senha" pra
-            clicar e não tem suporte pra chamar — é o preço exato de ninguém além de você ter esses
-            dados. Prefiro te contar isso hoje do que no dia em que acontecer.
-          </AppText>
+        <Card>
+          <Reveal label="Seus dados">
+            <AppText variant="small" tone="secondary">
+              Tudo que você digita aqui fica salvo dentro deste aparelho, num arquivo que só o
+              Arrego abre. Não existe servidor, não existe conta na nuvem, não existe login e não
+              existe e-mail. Sua renda, suas dívidas, suas metas e sua foto não são enviadas pra
+              lugar nenhum, porque não tem pra onde enviar: o app não sabe conversar com a internet.
+            </AppText>
+            <AppText variant="small" tone="secondary">
+              Ninguém da Locomotiva vê isso. Nenhum anunciante vê isso. Eu não vendo, não
+              compartilho e não analiso seus dados em lugar nenhum — não por bondade, mas porque
+              eles nunca saem daí de dentro.
+            </AppText>
+            <AppText variant="small">
+              E agora a parte ruim, que eu não vou esconder de você: como não existe cópia em lugar
+              nenhum, também não existe recuperação. Trocou de celular, perdeu. Perdeu o celular,
+              perdeu. Desinstalou o app, perdeu. Formatou, perdeu. Não tem "esqueci minha senha" pra
+              clicar e não tem suporte pra chamar — é o preço exato de ninguém além de você ter
+              esses dados. Prefiro te contar isso hoje do que no dia em que acontecer.
+            </AppText>
+          </Reveal>
         </Card>
 
-        <Card style={styles.stack}>
-          <AppText variant="subheading">🧨 Apagar tudo</AppText>
-          <AppText variant="small" tone="secondary">
-            Some com o arquivo inteiro: perfil, renda, contas, assinaturas, cartões, parcelas e
-            metas. O app volta a ser uma tela em branco, como no primeiro dia. É seu direito e eu
-            não vou tentar te convencer do contrário — só não tem desfazer.
-          </AppText>
-          <Button label="Apagar tudo" variant="danger" full onPress={confirmWipe} />
+        <Card>
+          <ListRow
+            title="Apagar tudo"
+            tone="critical"
+            leading={<Icon name="trash" color={colors.money.negativeText} />}
+            onPress={confirmWipe}
+          />
         </Card>
 
-        <View style={styles.footer}>
-          <AppText variant="caption" tone="muted">
-            Arrego {version ?? '—'} · roda offline, no seu aparelho
-          </AppText>
-          <AppText variant="small" tone="secondary" style={styles.quote}>
-            Eu não tenho servidor, não tenho login e não tenho nada pra te vender. Sobra tempo, e eu
-            uso esse tempo reparando nas suas assinaturas. Se quiser me dar trabalho de verdade,
-            atualiza o que mudou esse mês.
-          </AppText>
-        </View>
+        <AppText variant="caption" tone="muted" style={styles.centered}>
+          Arrego {version ?? '—'} · roda offline, no seu aparelho
+        </AppText>
       </View>
+
+      <Sheet visible={nameOpen} onClose={closeName} title="Seu nome">
+        <TextField
+          label="Como eu te chamo?"
+          value={shownName}
+          onChangeText={setDraftName}
+          onBlur={() => {
+            void commitName();
+          }}
+          placeholder="Seu nome"
+          hint="É assim que eu falo com você."
+          maxLength={40}
+          autoFocus
+        />
+      </Sheet>
+
+      <Sheet
+        visible={paydayOpen}
+        onClose={() => setPaydayOpen(false)}
+        title="Dia que o dinheiro cai"
+      >
+        <DayField
+          label="Dia do mês"
+          value={profile.payday}
+          onChange={(day) => {
+            void savePayday(day);
+          }}
+          hint="Toca de novo no dia pra deixar em branco."
+        />
+      </Sheet>
 
       <Sheet visible={emojiOpen} onClose={() => setEmojiOpen(false)} title="Escolhe sua cara">
         <View style={styles.emojiGrid} accessibilityRole="radiogroup">
@@ -332,8 +402,13 @@ export default function PerfilScreen() {
                 style={({ pressed }) => [
                   styles.emojiCell,
                   {
-                    backgroundColor: selected ? colors.brand.amber : colors.surfaceSunken,
-                    borderColor: selected ? colors.brand.amberDeep : colors.border,
+                    backgroundColor: colors.surfaceSunken,
+                    // O escolhido é um aro de tinta, não uma pastilha amarela:
+                    // é a única seleção da tela e ela não vale um segundo
+                    // amarelo. A borda é interna no RN, então engrossá-la não
+                    // mexe no tamanho da célula.
+                    borderColor: selected ? colors.ink.primary : colors.border,
+                    borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
                   },
                   pressed && styles.pressed,
                 ]}
@@ -345,8 +420,7 @@ export default function PerfilScreen() {
         </View>
         {profile.photoUri !== null ? (
           <AppText variant="small" tone="muted">
-            Você está usando uma foto, então o emoji fica guardado esperando a vez. Remove a foto lá
-            em cima pra ele aparecer.
+            Você está usando uma foto — remove ela pra carinha aparecer.
           </AppText>
         ) : null}
       </Sheet>
@@ -355,8 +429,17 @@ export default function PerfilScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { gap: spacing.lg },
-  stack: { gap: spacing.md },
+  grow: { flex: 1 },
+  // Um assunto por bloco, separados por espaço. Nenhuma borda faz esse trabalho.
+  page: { gap: spacing.section },
+  centered: { textAlign: 'center' },
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.xxl,
+  },
+  errorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   identity: {
     alignItems: 'center',
     gap: spacing.md,
@@ -367,12 +450,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
-  footer: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingTop: spacing.sm,
-  },
-  quote: { textAlign: 'center' },
   emojiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -385,7 +462,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   emojiGlyph: { fontSize: 28, lineHeight: 34 },
   pressed: { opacity: 0.65 },

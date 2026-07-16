@@ -59,12 +59,14 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.screen,
+    // Topo generoso: é o ar acima do primeiro número que diz "isto é o assunto".
+    paddingTop: spacing.xxl,
     // Folga para a tab bar e o gesto do iOS não comerem a última linha.
     paddingBottom: spacing.xxxl * 2,
   },
   footer: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.screen,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },

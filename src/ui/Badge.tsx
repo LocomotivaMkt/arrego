@@ -2,25 +2,27 @@ import { StyleSheet, View } from 'react-native';
 import { radius, spacing, type ThemeColors } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import type { InsightSeverity } from '@/types/models';
-import { AppText, InkSurface } from './AppText';
+import { AppText, useOnBrand } from './AppText';
+import { Icon, type IconName } from './Icon';
 
 export type BadgeProps = {
   label: string;
   severity: InsightSeverity;
 };
 
-function severityEmoji(severity: InsightSeverity): string {
+/** A forma do estado. A cor sozinha nunca carrega o significado. */
+function severityIcon(severity: InsightSeverity): IconName {
   switch (severity) {
     case 'critical':
-      return '🚨';
+      return 'danger';
     case 'serious':
-      return '⚠️';
+      return 'alert';
     case 'warning':
-      return '👀';
+      return 'eye';
     case 'good':
-      return '✅';
+      return 'ok';
     case 'neutral':
-      return 'ℹ️';
+      return 'info';
   }
 }
 
@@ -40,31 +42,32 @@ function severityMark(colors: ThemeColors, severity: InsightSeverity): string {
 }
 
 /**
- * A cor fica na BORDA e o significado no emoji + rótulo. `warning` e `serious`
- * ficam abaixo de 3:1 no fundo claro de propósito — se a cor fosse o único
- * sinal, quem não distingue vermelho de laranja leria "tudo igual".
+ * Um ponto, um glifo, três palavras.
+ *
+ * A versão anterior era uma pílula com fundo e borda colorida — e uma tela com
+ * seis dessas é uma tela gritando seis vezes. Aqui a cor vira um ponto de 6px,
+ * o significado fica na forma e no rótulo, e o resto é tinta de texto normal.
+ *
+ * Sem superfície própria de propósito: dentro de um card de marca o rótulo
+ * herda `onBrand` sozinho, via contexto, em vez de fingir um fundo que não tem.
  */
 export function Badge({ label, severity }: BadgeProps) {
   const { colors } = useTheme();
+  const onBrand = useOnBrand();
 
   return (
-    // Desenha superfície própria: dentro de um card de marca a tinta precisa
-    // voltar a ser a do tema.
-    <InkSurface onBrand={false}>
-      <View
-        accessible
-        accessibilityLabel={label}
-        style={[
-          styles.root,
-          { backgroundColor: colors.surfaceSunken, borderColor: severityMark(colors, severity) },
-        ]}
-      >
-        <AppText variant="caption">{severityEmoji(severity)}</AppText>
-        <AppText variant="caption" numberOfLines={1} style={styles.label}>
-          {label}
-        </AppText>
-      </View>
-    </InkSurface>
+    <View accessible accessibilityLabel={label} style={styles.root}>
+      <View style={[styles.dot, { backgroundColor: severityMark(colors, severity) }]} />
+      {/*
+        `warning` e `serious` ficam abaixo de 3:1 no fundo claro de propósito.
+        Se a cor fosse o único sinal, quem não distingue vermelho de laranja
+        leria "tudo igual" — por isso a forma vem junto, sempre.
+      */}
+      <Icon name={severityIcon(severity)} size={12} tone={onBrand ? 'onBrand' : 'muted'} />
+      <AppText variant="caption" numberOfLines={1} style={styles.label}>
+        {label}
+      </AppText>
+    </View>
   );
 }
 
@@ -74,10 +77,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     alignSelf: 'flex-start',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,
-    borderRadius: radius.pill,
-    borderWidth: 1,
   },
+  dot: { width: 6, height: 6, borderRadius: radius.pill },
   label: { flexShrink: 1 },
 });

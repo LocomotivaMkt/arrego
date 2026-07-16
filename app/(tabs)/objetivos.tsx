@@ -5,6 +5,30 @@
  * projetado vem de `GoalProjection`. Nada de "quanto falta" calculado aqui —
  * duas contas para o mesmo número divergem no dia em que uma delas muda.
  *
+ * ┌─────────────────── O QUE ESTA TELA MOSTRA DE CARA ────────────────────┐
+ * │ Por meta: emoji + rótulo + selo "#N"; medidor; "R$ 200 de R$ 4.000" e  │
+ * │ o valor do mês. Só. Todo o resto — o porquê da posição, a projeção, o  │
+ * │ "precisaria de X/mês", o extrato — mora em "Detalhes", fechado.        │
+ * └───────────────────────────────────────────────────────────────────────┘
+ *
+ * Esta tela tinha 2.393 caracteres de texto corrido e o veredito do dono foi
+ * "parece um golpe". Ele estava certo, e a causa era estrutural: cada card
+ * explicava a própria existência em três frases antes de mostrar o número. App
+ * sério mostra o número e cala a boca; quem se explica em três parágrafos é
+ * quem está vendendo alguma coisa. Nada saiu daqui — o texto desceu um nível,
+ * para trás de um toque (`Reveal`), que é o mecanismo que `textBudget` prevê.
+ *
+ * As falas vêm de `SHORT` (via `shortLine`), não de `LINES`: `LINES` é a boca
+ * inteira da Arrego e o lugar dela é /conversa, onde texto É o conteúdo. Aqui
+ * ela fala uma linha, e a saída prática é o botão ao lado.
+ *
+ * O AMARELO: uma superfície por tela, e nesta tela ela é disputada por dois
+ * candidatos — o card de vitória e o botão "Nova meta". `brandGoalId` é o juiz:
+ * existindo vitória, ela leva o amarelo (é o assunto do momento) e o botão cai
+ * para `secondary`. Sem vitória, o botão leva. Nunca os dois — card amarelo mais
+ * botão amarelo na mesma tela é a estética de pirâmide financeira que nos
+ * trouxe até aqui.
+ *
  * Sobre o tom: esta é a única tela do app em que a pessoa está ganhando. Quando
  * `progress >= 1` o sarcasmo sai de cena e a vitória é limpa. E registrar SAQUE
  * não pode ter cara de punição — quem tem medo de registrar a verdade transforma
@@ -15,7 +39,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { emergencyFundTarget } from '@/engine/analysis';
-import { fill, firstName, hashSeed, LINES, pickLine } from '@/engine/persona';
+import { fill, firstName, hashSeed, pickLine, shortLine } from '@/engine/persona';
 import type { GoalAllocation } from '@/engine/plan';
 import { useArrego, usePlan, useProjections, useSnapshot } from '@/store/useArrego';
 import { HIT_SLOP, MIN_TOUCH, radius, spacing } from '@/theme/tokens';
@@ -36,12 +60,13 @@ import {
   Chip,
   CurrencyField,
   DayField,
-  EmptyState,
   Field,
+  Icon,
   InkSurface,
   ListRow,
   Meter,
   MoneyText,
+  Reveal,
   Screen,
   SectionHeader,
   SegmentedControl,
@@ -94,17 +119,23 @@ const BACKDATE_MONTHS = 6;
 
 /**
  * A soma dos prazos não cabe na sobra. Não existe banco para isso em
- * `persona.ts` — as falas de lá são sobre UMA meta, e aqui o problema é o
- * conjunto. Mesmo contrato de tom: a ironia é sobre a agenda, não sobre a
- * pessoa, e toda linha termina numa saída.
+ * `persona.ts` — `SHORT.planTooManyGoals` parece servir e não serve: lá o
+ * {valor} é "o que existe pra repartir", e aqui é o BURACO. Trocar um pelo
+ * outro faria a personagem dizer que se disputa um dinheiro que na verdade
+ * falta.
+ *
+ * Mesmo contrato de tom de `SHORT`: uma linha dentro de `textBudget.personaLine`,
+ * a ironia é sobre a agenda (nunca sobre a pessoa) e a saída prática é o BOTÃO
+ * — por isso nenhuma linha carrega {meta}: quem nomeia a meta a sacrificar é o
+ * rótulo do botão, que tem alvo de toque e desfaz o problema num toque.
  */
-const GOALS_OVERFLOW_LINES: readonly string[] = [
-  'Suas metas com prazo pedem {valor} a mais por mês do que sobra. Não é falta de vontade, é falta de mês. Tira o prazo de {meta} e a conta volta a fechar.',
-  '{nome}, somando os prazos que você prometeu a si mesmo, faltam {valor} todo mês. Alguém aqui está otimista demais, e não sou eu. Passa {meta} pra "algum dia" e o resto respira.',
-  'A matemática das suas metas estourou em {valor} por mês. Meta demais no mesmo mês vira meta nenhuma — o dinheiro não se divide por vontade. Solta o prazo de {meta} e as outras andam.',
-  'Faltam {valor} por mês pra todas as suas metas baterem no prazo. Dá pra insistir e não cumprir nenhuma, ou tirar o prazo de {meta} e cumprir as outras. Eu voto na segunda.',
-  'Seus prazos somados pedem {valor} a mais do que você tem por mês. Isso não é fracasso, é agenda cheia. Escolhe: {meta} sai da fila do prazo, ou você refaz as datas.',
-  '{valor} por mês é o tamanho do exagero dos seus prazos. Cada meta sozinha é razoável; juntas, não cabem. Tira o prazo de {meta} — ela continua existindo, só para de cobrar hora.',
+const GOALS_OVERFLOW_SHORT: readonly string[] = [
+  'Seus prazos somados pedem {valor} a mais por mês do que sobra.',
+  '{nome}, faltam {valor} por mês pra todos os prazos que você prometeu.',
+  'A matemática das suas metas estourou em {valor} por mês.',
+  'Meta demais no mesmo mês vira meta nenhuma. Faltam {valor}.',
+  '{valor} por mês é o tamanho do exagero dos seus prazos.',
+  'Não é falta de vontade, é falta de mês: faltam {valor} por mês.',
 ];
 
 /* ─────────────────────────────── Navegação ──────────────────────────────── */
@@ -160,12 +191,19 @@ function paceLine(projection: GoalProjection): string {
   if (projection.monthsAtCurrentPace !== null) {
     return `No seu ritmo: ${missingTime(projection.monthsAtCurrentPace)}.`;
   }
+  // Dentro do orçamento (<= 90 chars): a saída prática é o botão "Guardar
+  // dinheiro" na superfície do card, não o fim da frase.
   if (projection.monthlyPaceCents < 0) {
-    return 'Nos últimos meses saiu mais daqui do que entrou. Acontece — e o próximo depósito reverte isso.';
+    return 'Saiu mais daqui do que entrou. Acontece — o próximo depósito reverte.';
   }
-  return 'Você não guardou nada ainda pra essa. Começa com qualquer valor: qualquer um já tira o zero da conta.';
+  return 'Você ainda não guardou nada pra essa. Qualquer valor já tira o zero.';
 }
 
+/**
+ * Tudo o que sai daqui (menos `meter`) vive dentro de "Detalhes". O medidor é a
+ * única parte do status que fica na superfície, e ele carrega o estado por COR,
+ * sem gastar uma linha de texto pra isso.
+ */
 function describeGoal(goal: Goal, projection: GoalProjection): GoalStatus {
   const deadline =
     goal.targetDate !== null ? formatMonthLong(monthKeyFromISO(goal.targetDate)) : null;
@@ -274,15 +312,14 @@ function DepositLog({
                 ]}
               >
                 {/*
-                  Tinta explícita: este Pressable desenha superfície PRÓPRIA
-                  (surfaceSunken) dentro de um card que pode ser tone="brand" —
-                  o da meta batida. Sem isto o ✕ herda `onBrand` do InkSurface e
-                  vira #17150F sobre #232019 no tema escuro: 1.12:1, some. E é
+                  `Icon` não consulta o contexto de marca — a tinta dele sai do
+                  `tone` e pronto. É exatamente o que este botão precisa: ele
+                  desenha superfície PRÓPRIA (surfaceSunken) dentro de um card
+                  que pode ser tone="brand" (o da meta batida), e herdar `onBrand`
+                  daria #191713 sobre #252219 no tema escuro — 1.12:1, some. E é
                   justamente o botão que conserta um depósito digitado errado.
                 */}
-                <AppText variant="caption" style={{ color: colors.ink.secondary }}>
-                  ✕
-                </AppText>
+                <Icon name="close" size={14} tone="secondary" />
               </Pressable>
             </View>
           }
@@ -295,18 +332,18 @@ function DepositLog({
 /* ────────────────────────────── Selo de posição ─────────────────────────── */
 
 /**
- * "#1", "#2" — a resposta para "qual é a prioridade?", no lugar mais visível do
- * card.
+ * "#1", "#2" — a resposta para "qual é a prioridade?", no canto da linha do
+ * título.
  *
- * `brand.amberSoft` é SUPERFÍCIE de marca: clara nos dois temas, porque não é
- * tematizada. Por isso a tinta é `onBrand` e não `ink.primary` — no tema escuro
- * o primary vira branco e o "#1" sumiria (1.09:1 sobre o #FFF3D1). No tema claro
- * as duas são a mesma tinta (#17150F), então ali nada muda. `InkSurface` faz
- * disso estrutura em vez de convenção: quem escrever dentro do selo depois já
- * nasce com a tinta certa.
+ * Era amarelo (amberSoft com borda amberDeep) e não é mais: numa tela com uma
+ * meta por card, um selo amarelo por card é amarelo em toda parte, e amarelo em
+ * toda parte não aponta pra nada. Agora ele é `surfaceSunken` com tinta normal —
+ * um selo discreto, que é o que um número de posição precisa ser. O amarelo
+ * desta tela tem dono, e o dono é a vitória ou o botão de criar meta.
  *
- * A borda existe porque o amarelo suave sozinho quase não se separa do branco do
- * card — sem ela o selo vira um fantasma justo no elemento que precisa gritar.
+ * `InkSurface` porque o selo desenha superfície própria: se um dia ele aparecer
+ * dentro de um card de marca, a tinta precisa voltar à do tema em vez de herdar
+ * `onBrand` e sumir no escuro. Estrutura em vez de convenção que alguém esquece.
  *
  * Vira pílula sozinho quando o número passa de um dígito: com largura fixa, "#10"
  * seria cortado.
@@ -315,16 +352,13 @@ function RankBadge({ rank }: { rank: number }) {
   const { colors } = useTheme();
 
   return (
-    <InkSurface onBrand>
+    <InkSurface onBrand={false}>
       <View
         accessible
         accessibilityLabel={`Prioridade número ${rank}`}
-        style={[
-          styles.rankBadge,
-          { backgroundColor: colors.brand.amberSoft, borderColor: colors.brand.amberDeep },
-        ]}
+        style={[styles.rankBadge, { backgroundColor: colors.surfaceSunken }]}
       >
-        <AppText variant="bodyStrong">{`#${rank}`}</AppText>
+        <AppText variant="caption" tone="primary">{`#${rank}`}</AppText>
       </View>
     </InkSurface>
   );
@@ -338,8 +372,14 @@ type GoalCardProps = {
   /** O que o plano do mês reservou pra ela. Null = o motor não a ranqueia. */
   allocation: GoalAllocation | null;
   deposits: GoalDeposit[];
-  expanded: boolean;
-  onToggleLog: () => void;
+  /**
+   * Este card é o dono do amarelo da tela. Só o PRIMEIRO card de vitória recebe
+   * true — duas metas batidas no mesmo mês seriam dois cards amarelos, e a regra
+   * é uma superfície de marca por tela, não uma por vitória.
+   */
+  brand: boolean;
+  nome: string;
+  month: MonthKey;
   onDeposit: () => void;
   onEdit: () => void;
   onComplete: () => void;
@@ -351,8 +391,9 @@ function GoalCard({
   projection,
   allocation,
   deposits,
-  expanded,
-  onToggleLog,
+  brand,
+  nome,
+  month,
   onDeposit,
   onEdit,
   onComplete,
@@ -361,135 +402,152 @@ function GoalCard({
   const progressLabel = `${formatCents(projection.savedCents)} de ${formatCents(projection.targetCents)}`;
   const won = projection.progress >= 1 && goal.achievedAt === null;
 
-  // Vitória: nada de badge, de projeção, de cobrança, de ironia. A pessoa
+  // Vitória: nada de selo, de projeção, de cobrança, de ironia. A pessoa
   // acertou — a tela sai da frente e deixa ela comemorar.
   // O extrato continua alcançável de propósito: um depósito digitado errado
   // (R$ 3.000 no lugar de R$ 300) dispara essa tela sozinho, e sem o extrato
   // aqui não haveria como desfazer uma vitória que nunca aconteceu.
   if (won) {
     return (
-      <Card tone="brand">
+      <Card tone={brand ? 'brand' : 'surface'}>
         <View style={styles.cardStack}>
           <View style={styles.cardHead}>
-            <AppText style={styles.cardEmoji}>🎉</AppText>
-            <View style={styles.cardTitle}>
-              <AppText variant="heading" numberOfLines={2}>
-                {goal.label}
-              </AppText>
-              <AppText variant="small">Você bateu essa meta.</AppText>
-            </View>
+            <AppText style={styles.cardEmoji}>{goal.emoji}</AppText>
+            <AppText variant="subheading" numberOfLines={2} style={styles.cardLabel}>
+              {goal.label}
+            </AppText>
           </View>
 
-          <Meter progress={projection.progress} label={progressLabel} tone="good" />
+          {/* A seed carrega o id: duas metas batidas no mesmo mês receberiam a
+              mesma frase lado a lado e a personagem desmontaria na hora. */}
+          <AppText variant="small" tone="secondary">
+            {shortLine('goalAchieved', hashSeed(month, goal.id), {
+              nome,
+              meta: goal.label,
+              valor: formatCents(projection.savedCents),
+            })}
+          </AppText>
+
+          <Meter progress={projection.progress} tone="good" />
+
+          <AppText variant="small" tone="muted">
+            {progressLabel}
+          </AppText>
 
           {/* `secondary` e não `primary`: botão amarelo em card amarelo some. */}
-          <Button label="Concluir meta" icon="🏁" variant="secondary" onPress={onComplete} full />
+          <Button label="Concluir meta" icon="check" variant="secondary" onPress={onComplete} full />
 
-          <Pressable
-            onPress={onToggleLog}
-            hitSlop={HIT_SLOP}
-            accessible
-            accessibilityRole="button"
-            accessibilityState={{ expanded }}
-            accessibilityLabel={`Extrato de ${goal.label}`}
-            style={({ pressed }) => [styles.logToggle, pressed && styles.pressed]}
-          >
-            <AppText variant="small">{expanded ? 'Esconder extrato' : 'Ver extrato'}</AppText>
-            <AppText variant="small">{expanded ? '▴' : '▾'}</AppText>
-          </Pressable>
-
-          {expanded ? (
+          <Reveal label="Detalhes">
+            <AppText variant="caption" tone="muted">
+              Últimos lançamentos
+            </AppText>
             <DepositLog deposits={deposits.slice(0, EXTRATO_LIMIT)} onRemove={onRemoveDeposit} />
-          ) : null}
+          </Reveal>
         </View>
       </Card>
     );
   }
 
   const status = describeGoal(goal, projection);
+  const monthReading =
+    allocation !== null ? `. Guardar este mês: ${formatCents(allocation.suggestedCents)}` : '';
 
   return (
     <Card>
       <View style={styles.cardStack}>
+        {/* Linha 1 — de quem é a meta, e que lugar ela ocupa na fila. */}
         <View style={styles.cardHead}>
-          {allocation !== null ? <RankBadge rank={allocation.rank} /> : null}
           <AppText style={styles.cardEmoji}>{goal.emoji}</AppText>
-          <View style={styles.cardTitle}>
-            <AppText variant="subheading" numberOfLines={2}>
-              {goal.label}
-            </AppText>
-            <Badge label={status.badge} severity={status.severity} />
-          </View>
+          <AppText variant="subheading" numberOfLines={2} style={styles.cardLabel}>
+            {goal.label}
+          </AppText>
+          {allocation !== null ? <RankBadge rank={allocation.rank} /> : null}
         </View>
 
-        {/* O porquê da posição sai inteiro do motor (`rankReason`) e fica em
-            largura cheia, embaixo do cabeçalho: dentro da coluna do título ele
-            seria espremido ao lado do emoji e do selo. */}
-        {allocation !== null ? (
-          <AppText variant="small" tone="secondary">
-            {allocation.rankReason}
+        {/* Linha 2 — o medidor sem rótulo: a linha 3 já é o rótulo dele, e o
+            `Meter` com `label` imprimiria o mesmo número duas vezes. */}
+        <Meter progress={projection.progress} tone={status.meter} />
+
+        {/* Linha 3 — o quanto já foi, e o quanto vai este mês. O número da
+            direita fica sem rótulo de propósito (é o desenho da tela); quem lê
+            por leitor de tela recebe a frase inteira, e quem quiser o rótulo
+            escrito abre "Detalhes". */}
+        <View
+          accessible
+          accessibilityLabel={`${progressLabel}${monthReading}`}
+          style={styles.progressRow}
+        >
+          <AppText variant="small" tone="muted" style={styles.progressLabel}>
+            {progressLabel}
           </AppText>
-        ) : null}
+          {allocation !== null ? (
+            <MoneyText cents={allocation.suggestedCents} tone="neutral" tabular />
+          ) : null}
+        </View>
 
-        <Meter progress={projection.progress} label={progressLabel} tone={status.meter} />
+        {/*
+          Tudo o que a versão anterior gritava na superfície. Nada foi apagado:
+          desceu um nível. O `rankReason` sozinho é uma frase longa, e ele se
+          repetia em cada card da lista — cinco metas eram cinco parágrafos
+          empilhados antes de qualquer número aparecer.
+        */}
+        <Reveal label="Detalhes">
+          <Badge label={status.badge} severity={status.severity} />
 
-        {status.lines.length > 0 ? (
-          <View style={styles.lines}>
-            {status.lines.map((line, index) => (
-              // Índice como key: a lista é estática, montada aqui mesmo e nunca
-              // reordenada — não há item para o React perder de vista.
-              <AppText key={index} variant="small" tone="secondary">
-                {line}
-              </AppText>
-            ))}
-            {status.caption !== null ? (
-              <AppText variant="caption" tone="muted">
-                {status.caption}
-              </AppText>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Encostado no botão de guardar de propósito: é a resposta ("quanto")
-            colada na ação ("guardar"). O número é do plano, não daqui. */}
-        {allocation !== null ? (
-          <View style={styles.mathRow}>
+          {/* O porquê da posição sai inteiro do motor (`rankReason`). */}
+          {allocation !== null ? (
             <AppText variant="small" tone="secondary">
-              Guardar este mês
+              {allocation.rankReason}
             </AppText>
-            {allocation.suggestedCents === 0 ? (
-              <Badge label="Sem verba este mês" severity="warning" />
-            ) : (
-              <MoneyText cents={allocation.suggestedCents} tabular />
-            )}
-          </View>
-        ) : null}
+          ) : null}
 
+          {status.lines.map((line, index) => (
+            // Índice como key: a lista é estática, montada aqui mesmo e nunca
+            // reordenada — não há item para o React perder de vista.
+            <AppText key={index} variant="small" tone="secondary">
+              {line}
+            </AppText>
+          ))}
+
+          {status.caption !== null ? (
+            <AppText variant="caption" tone="muted">
+              {status.caption}
+            </AppText>
+          ) : null}
+
+          {/* O mesmo número da linha 3, agora com o rótulo escrito. O número é
+              do plano, não daqui. */}
+          {allocation !== null ? (
+            <View style={styles.mathRow}>
+              <AppText variant="small" tone="secondary">
+                Guardar este mês
+              </AppText>
+              {allocation.suggestedCents === 0 ? (
+                <Badge label="Sem verba este mês" severity="warning" />
+              ) : (
+                <MoneyText cents={allocation.suggestedCents} tabular />
+              )}
+            </View>
+          ) : null}
+
+          <AppText variant="caption" tone="muted">
+            Últimos lançamentos
+          </AppText>
+          <DepositLog deposits={deposits.slice(0, EXTRATO_LIMIT)} onRemove={onRemoveDeposit} />
+        </Reveal>
+
+        {/*
+          AÇÃO FICA NA SUPERFÍCIE, SEMPRE.
+          Estes dois botões já estiveram dentro do <Reveal> acima, e isso era um
+          bug e não uma economia de espaço: "Guardar dinheiro" é o ÚNICO caminho
+          para depositar numa meta. Trancá-lo atrás de "Detalhes" transforma a
+          tela em vitrine — a pessoa vê o quanto guardar e não tem como guardar.
+          O orçamento de texto manda esconder EXPLICAÇÃO, nunca AÇÃO.
+        */}
         <View style={styles.cardActions}>
-          <Button label="Guardar dinheiro" icon="💰" variant="secondary" onPress={onDeposit} />
+          <Button label="Guardar dinheiro" icon="money" variant="secondary" onPress={onDeposit} />
           <Button label="Editar" variant="ghost" onPress={onEdit} />
         </View>
-
-        <Pressable
-          onPress={onToggleLog}
-          hitSlop={HIT_SLOP}
-          accessible
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          accessibilityLabel={`Extrato de ${goal.label}`}
-          style={({ pressed }) => [styles.logToggle, pressed && styles.pressed]}
-        >
-          <AppText variant="small" tone="secondary">
-            {expanded ? 'Esconder extrato' : 'Ver extrato'}
-          </AppText>
-          <AppText variant="small" tone="muted">
-            {expanded ? '▴' : '▾'}
-          </AppText>
-        </Pressable>
-
-        {expanded ? (
-          <DepositLog deposits={deposits.slice(0, EXTRATO_LIMIT)} onRemove={onRemoveDeposit} />
-        ) : null}
       </View>
     </Card>
   );
@@ -523,6 +581,10 @@ function IconPicker({ value, onChange }: { value: string; onChange: (emoji: stri
               ]}
             >
               {/*
+                Este é o único emoji que a interface desenha por vontade própria,
+                e ele passa porque é a ESCOLHA da pessoa virando o ícone da meta
+                dela — conteúdo, não enfeite.
+
                 A célula selecionada é amarela, então a tinta tem de ser onBrand.
                 Hoje todos os GOAL_ICONS são emoji (glifo colorido ignora `color`)
                 e nada aparece — mas o primeiro ícone de texto que entrar aqui
@@ -593,8 +655,6 @@ export default function ObjetivosScreen() {
   const [depositDay, setDepositDay] = useState<number>(() => new Date().getDate());
   const [depositNote, setDepositNote] = useState('');
 
-  const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
-
   /** `null` = ninguém tocou no campo, então ele segue a sugestão do snapshot.
    *  Fixar no primeiro render deixaria o valor velho depois de cadastrar contas. */
   const [emergencyCents, setEmergencyCents] = useState<Cents | null>(null);
@@ -654,9 +714,26 @@ export default function ObjetivosScreen() {
     });
   }, [goals, projectionById, allocationByGoal]);
 
+  /**
+   * Quem leva o amarelo da tela.
+   *
+   * A vitória ganha do botão "Nova meta" porque é o assunto do momento — a regra
+   * de precedência manda o destaque apontar pro card do número principal antes
+   * de apontar pra ação principal. `find` e não `some`: com duas metas batidas,
+   * só a primeira da lista fica amarela. O amarelo é um dedo apontando; dois
+   * dedos apontando pra lados diferentes não apontam pra nada.
+   */
+  const brandGoalId = useMemo(
+    () =>
+      rows.find(({ goal, projection }) => projection.progress >= 1 && goal.achievedAt === null)
+        ?.goal.id ?? null,
+    [rows],
+  );
+
   const hasEmergencyGoal = goals.some((goal) => goal.kind === 'emergency');
   const suggestedEmergency = emergencyFundTarget(snapshot);
   const emergencyValue = emergencyCents ?? suggestedEmergency.targetCents;
+  const hasPlan = plan.allocations.length > 0;
 
   /**
    * As metas com prazo pedem mais do que sobra. O alvo da sugestão é a meta de
@@ -872,7 +949,9 @@ export default function ObjetivosScreen() {
    * Alert e não card na tela: a pessoa acabou de tocar "Nova meta" no PÉ da
    * lista, e um card no topo nasceria fora da tela — a resposta que ela pediu
    * agora chegaria depois de um scroll que ninguém dá. O selo "#N" no card fica
-   * de resposta permanente; o Alert é a resposta do momento.
+   * de resposta permanente; o Alert é a resposta do momento. E o Alert é o único
+   * lugar desta tela em que o `rankReason` aparece sem um toque antes: aqui ele
+   * é a resposta a uma pergunta que a pessoa acabou de fazer, não moldura.
    */
   useEffect(() => {
     if (justCreatedGoalId === null) return;
@@ -913,32 +992,42 @@ export default function ObjetivosScreen() {
   return (
     <Screen scroll>
       <View style={styles.stack}>
-        <SectionHeader title="Metas" />
+        {/* "Ver o plano completo" era um botão de largura cheia dentro de um card
+            explicativo. Vira a ação do cabeçalho: mesmo destino, um toque, zero
+            moldura. Aparece só quando existe plano, como antes. */}
+        <SectionHeader
+          title="Metas"
+          first
+          actionLabel={hasPlan ? 'Ver o plano' : undefined}
+          onAction={hasPlan ? abrirPlano : undefined}
+        />
 
         {!hasEmergencyGoal ? (
-          <Card tone="brand">
+          <Card>
             <View style={styles.cardStack}>
               <View style={styles.cardHead}>
-                <AppText style={styles.cardEmoji}>🛡️</AppText>
-                <View style={styles.cardTitle}>
-                  <AppText variant="heading">Reserva de emergência</AppText>
-                  <AppText variant="caption">A meta que protege as outras metas</AppText>
-                </View>
+                <Icon name="shield" size={24} tone="primary" />
+                <AppText variant="subheading" style={styles.cardLabel}>
+                  Crie sua reserva
+                </AppText>
               </View>
 
-              <AppText variant="body">
-                {fill(pickLine(LINES.noEmergencyFund, hashSeed(month, 'objetivos:noEmergencyFund')), {
+              <AppText variant="small" tone="secondary">
+                {shortLine('noEmergencyFund', hashSeed(month), {
                   nome,
                   valor: formatCents(suggestedEmergency.targetCents),
                 })}
               </AppText>
 
-              {/* O "porquê" não pode depender de qual fala foi sorteada. */}
-              <AppText variant="small">
-                Ela vem antes de qualquer outra meta porque é a única que defende as outras: sem
-                reserva, o primeiro imprevisto vira parcela no cartão e come a viagem, o carro e o
-                que mais estiver na fila.
-              </AppText>
+              {/* O "porquê" não pode depender de qual fala foi sorteada — e
+                  também não precisa estar aberto: quem já entendeu a reserva não
+                  quer lê-lo de novo toda vez que passa por aqui. */}
+              <Reveal label="Por que ela vem antes?">
+                <AppText variant="small" tone="secondary">
+                  Ela é a única meta que defende as outras: sem reserva, o primeiro imprevisto vira
+                  parcela no cartão e come a viagem, o carro e o que mais estiver na fila.
+                </AppText>
+              </Reveal>
 
               <CurrencyField
                 label="Alvo sugerido"
@@ -948,14 +1037,16 @@ export default function ObjetivosScreen() {
                 // do seu mês" — dizer que é contradiz o número no próprio campo.
                 hint={
                   suggestedEmergency.usedFloor
-                    ? 'Um mínimo pra você começar por algum lugar. Assim que suas contas estiverem cadastradas, eu refaço essa conta em cima de 6 meses do que seu mês exige. Dá pra ajustar.'
-                    : `6 meses do que seu mês exige (${formatCents(snapshot.committedCents)}/mês). Dá pra ajustar.`
+                    ? 'Um mínimo pra começar. Refaço quando suas contas entrarem.'
+                    : `6 meses de ${formatCents(snapshot.committedCents)} por mês. Dá pra ajustar.`
                 }
               />
 
+              {/* `secondary` e não `primary`: o amarelo desta tela já tem dono
+                  (a vitória, ou o "Nova meta" no pé da lista). */}
               <Button
                 label="Criar reserva"
-                icon="🛡️"
+                icon="shield"
                 variant="secondary"
                 onPress={createEmergencyGoal}
                 disabled={emergencyValue <= 0}
@@ -968,43 +1059,44 @@ export default function ObjetivosScreen() {
         {overflow !== null ? (
           <Card>
             <View style={styles.cardStack}>
-              {/* Não existe Card 'serious': a severidade mora no Badge (cor na
-                  borda + emoji + rótulo), nunca na cor do fundo sozinha. */}
+              {/* Não existe Card 'serious': a severidade mora no Badge (ponto de
+                  cor + glifo + rótulo), nunca na cor do fundo sozinha. */}
               <Badge label="As metas não cabem na sobra" severity="serious" />
 
-              <AppText variant="body">
-                {fill(pickLine(GOALS_OVERFLOW_LINES, hashSeed(month, 'objetivos:overflow')), {
+              <AppText variant="small" tone="secondary">
+                {fill(pickLine(GOALS_OVERFLOW_SHORT, hashSeed(month, 'objetivos:overflow')), {
                   nome,
                   valor: formatCents(overflow.gap),
-                  meta: overflow.goal.label,
                 })}
               </AppText>
 
-              {/* A conta inteira, na ordem em que ela acontece. O último número é
-                  o `afterGoalsCents` cru: "Faltam −R$ 200" seria negativo em cima
-                  de negativo, e a pessoa leria o sinal trocado. */}
-              <View style={styles.math}>
-                <View style={styles.mathRow}>
-                  <AppText variant="small" tone="secondary">
-                    Sobra por mês
-                  </AppText>
-                  <MoneyText cents={snapshot.freeCents} tabular />
+              <Reveal label="Ver a conta">
+                {/* A conta inteira, na ordem em que ela acontece. O último número
+                    é o `afterGoalsCents` cru: "Faltam −R$ 200" seria negativo em
+                    cima de negativo, e a pessoa leria o sinal trocado. */}
+                <View style={styles.math}>
+                  <View style={styles.mathRow}>
+                    <AppText variant="small" tone="secondary">
+                      Sobra por mês
+                    </AppText>
+                    <MoneyText cents={snapshot.freeCents} tabular />
+                  </View>
+                  <View style={styles.mathRow}>
+                    <AppText variant="small" tone="secondary">
+                      As metas com prazo pedem
+                    </AppText>
+                    <MoneyText cents={-snapshot.goalsMonthlyNeedCents} tabular />
+                  </View>
+                  <View style={styles.mathRow}>
+                    <AppText variant="bodyStrong">Sobra depois das metas</AppText>
+                    <MoneyText cents={snapshot.afterGoalsCents} variant="bodyStrong" tabular />
+                  </View>
                 </View>
-                <View style={styles.mathRow}>
-                  <AppText variant="small" tone="secondary">
-                    As metas com prazo pedem
-                  </AppText>
-                  <MoneyText cents={-snapshot.goalsMonthlyNeedCents} tabular />
-                </View>
-                <View style={styles.mathRow}>
-                  <AppText variant="bodyStrong">Sobra depois das metas</AppText>
-                  <MoneyText cents={snapshot.afterGoalsCents} variant="bodyStrong" tabular />
-                </View>
-              </View>
 
-              <AppText variant="small" tone="secondary">
-                {`Tirar o prazo de ${overflow.goal.label} libera ${formatCents(overflow.required)} por mês. Ela continua na lista, só para de exigir data.`}
-              </AppText>
+                <AppText variant="small" tone="secondary">
+                  {`Tirar o prazo de ${overflow.goal.label} libera ${formatCents(overflow.required)} por mês. Ela continua na lista, só para de exigir data.`}
+                </AppText>
+              </Reveal>
 
               <Button
                 label={`Tirar o prazo de ${overflow.goal.label}`}
@@ -1017,32 +1109,30 @@ export default function ObjetivosScreen() {
         ) : null}
 
         {rows.length === 0 ? (
-          <EmptyState
-            emoji="🎯"
-            title="Nenhuma meta ainda"
-            body={fill(pickLine(LINES.noGoals, hashSeed(month, 'objetivos:noGoals')), { nome })}
-            actionLabel="Criar minha primeira meta"
-            onAction={openNewGoal}
-          />
+          <View style={styles.empty}>
+            <Icon name="target" size={32} tone="muted" />
+            <AppText variant="heading" style={styles.centered}>
+              Nenhuma meta ainda
+            </AppText>
+            <AppText variant="small" tone="secondary" style={styles.centered}>
+              {shortLine('noGoals', hashSeed(month), { nome })}
+            </AppText>
+            {/* Sem meta não há vitória, então o amarelo está livre e é daqui. */}
+            <View style={styles.emptyAction}>
+              <Button label="Criar minha primeira meta" onPress={openNewGoal} />
+            </View>
+          </View>
         ) : (
           <>
             {/* Explica a numeração que vem logo abaixo, então aparece exatamente
                 quando existe numeração: plano inviável não ranqueia ninguém, e
-                aí este card estaria descrevendo uma ordem que não está na tela. */}
-            {plan.allocations.length > 0 ? (
-              <Card tone="sunken">
-                <View style={styles.cardStack}>
-                  <AppText variant="body">
-                    {'A ordem não é opinião minha, é a sua: reserva primeiro, depois o que você marcou como mais importante, e prazo ganha de "algum dia".'}
-                  </AppText>
-                  <Button
-                    label="Ver o plano completo"
-                    variant="secondary"
-                    onPress={abrirPlano}
-                    full
-                  />
-                </View>
-              </Card>
+                aí isto estaria descrevendo uma ordem que não está na tela. */}
+            {hasPlan ? (
+              <Reveal label="Como a ordem é decidida?">
+                <AppText variant="small" tone="secondary">
+                  {'A ordem não é opinião minha, é a sua: reserva primeiro, depois o que você marcou como mais importante, e prazo ganha de "algum dia".'}
+                </AppText>
+              </Reveal>
             ) : null}
 
             {rows.map(({ goal, projection, allocation }) => (
@@ -1052,8 +1142,9 @@ export default function ObjetivosScreen() {
                 projection={projection}
                 allocation={allocation}
                 deposits={depositsByGoal.get(goal.id) ?? []}
-                expanded={expandedGoalId === goal.id}
-                onToggleLog={() => setExpandedGoalId(expandedGoalId === goal.id ? null : goal.id)}
+                brand={brandGoalId === goal.id}
+                nome={nome}
+                month={month}
                 onDeposit={() => openDeposit(goal.id)}
                 onEdit={() => openEditGoal(goal)}
                 onComplete={() => completeGoal(goal)}
@@ -1061,7 +1152,14 @@ export default function ObjetivosScreen() {
               />
             ))}
 
-            <Button label="Nova meta" icon="+" onPress={openNewGoal} full />
+            {/* O amarelo é dele só quando nenhuma vitória o reivindicou. */}
+            <Button
+              label="Nova meta"
+              icon="add"
+              variant={brandGoalId === null ? 'primary' : 'secondary'}
+              onPress={openNewGoal}
+              full
+            />
           </>
         )}
       </View>
@@ -1087,7 +1185,7 @@ export default function ObjetivosScreen() {
           label="Quanto custa"
           cents={form.targetCents}
           onChangeCents={(targetCents) => setForm({ ...form, targetCents })}
-          hint="Chute alto demais trava a meta antes de ela começar. Chuta o real."
+          hint="Chuta o real. Alvo alto demais trava a meta."
         />
 
         <Field
@@ -1095,7 +1193,7 @@ export default function ObjetivosScreen() {
           hint={
             form.targetMonth !== null
               ? `Até o fim de ${formatMonthLong(form.targetMonth)}.`
-              : 'Sem prazo é uma escolha legítima: a meta anda no seu tempo e não cobra valor mensal.'
+              : 'Sem prazo a meta anda no seu tempo e não cobra valor mensal.'
           }
         >
           <View style={styles.chips}>
@@ -1116,11 +1214,11 @@ export default function ObjetivosScreen() {
         </Field>
 
         {editingEmergency ? (
-          <Field label="Prioridade" hint="A reserva de emergência é sempre a prioridade zero. É o ponto dela.">
-            <Chip label="Prioridade zero" icon="🛡️" selected />
+          <Field label="Prioridade" hint="A reserva é sempre prioridade zero. É o ponto dela.">
+            <Chip label="Prioridade zero" selected />
           </Field>
         ) : (
-          <Field label="Prioridade" hint="Quando a sobra não cobre tudo, é essa ordem que decide quem anda primeiro.">
+          <Field label="Prioridade" hint="Quando a sobra não cobre tudo, essa ordem decide quem anda.">
             <View style={styles.chips}>
               {PRIORITIES.map((priority) => (
                 <Chip
@@ -1172,11 +1270,11 @@ export default function ObjetivosScreen() {
         {depositDirection === 'out' ? (
           // Registrar saque sem julgamento é o que mantém o resto dos números
           // reais. Uma frase de culpa aqui e a pessoa simplesmente não registra —
-          // e aí a meta vira um número bonito que não existe.
+          // e aí a meta vira um número bonito que não existe. Em uma linha a
+          // absolvição fica mais crível, aliás: quem se explica demais parece
+          // estar pedindo desculpa pelo próprio botão.
           <AppText variant="small" tone="secondary">
-            Tirou, tirou. O dinheiro é seu e guardar não é prisão. Registrar aqui não piora nada:
-            só mantém o número honesto, que é a única coisa que faz o resto do app valer alguma
-            coisa.
+            Tirou, tirou. Guardar não é prisão — registrar só mantém o número honesto.
           </AppText>
         ) : null}
 
@@ -1240,21 +1338,25 @@ const styles = StyleSheet.create({
   stack: { gap: spacing.lg },
   cardStack: { gap: spacing.md },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  cardEmoji: { fontSize: 34, lineHeight: 40 },
-  cardTitle: { flex: 1, gap: spacing.xs, alignItems: 'flex-start' },
+  cardEmoji: { fontSize: 28, lineHeight: 34 },
+  cardLabel: { flex: 1 },
   rankBadge: {
     // `minWidth` e não `width`: círculo em "#1", pílula em "#10".
-    minWidth: 34,
-    height: 34,
+    minWidth: 24,
+    height: 24,
     paddingHorizontal: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
-    borderWidth: 1,
   },
-  lines: { gap: spacing.xs },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  progressLabel: { flexShrink: 1 },
   cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  logToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH },
   logTrailing: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   logDelete: {
     width: 28,
@@ -1270,6 +1372,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
   },
+  empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxl },
+  centered: { textAlign: 'center' },
+  emptyAction: { marginTop: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   iconCell: {

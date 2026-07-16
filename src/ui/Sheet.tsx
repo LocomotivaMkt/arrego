@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HIT_SLOP, palette, radius, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import { AppText, InkSurface } from './AppText';
+import { Icon } from './Icon';
 
 export type SheetProps = {
   visible: boolean;
@@ -79,9 +80,13 @@ export function Sheet({ visible, onClose, title, children }: SheetProps) {
                   pressed && styles.pressed,
                 ]}
               >
-                <AppText variant="bodyStrong" tone="secondary">
-                  ✕
-                </AppText>
+                {/*
+                  Ícone, não o caractere ✕ solto num nó de texto: o glifo de
+                  texto ignora a tinta do tema, desalinha em cada sistema e o
+                  leitor de tela o anuncia junto do conteúdo. É a mesma classe
+                  de erro que duplicou o emoji nas abas.
+                */}
+                <Icon name="close" tone="secondary" />
               </Pressable>
             </View>
 
