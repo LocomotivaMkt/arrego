@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Arrego",
+    "slug": "arrego",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "arrego",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#FFC53D",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "br.com.locomotiva.arrego",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "O Arrego usa a sua galeria só para você escolher uma foto de perfil. A foto fica salva no seu aparelho e não é enviada para lugar nenhum."
+      }
+    },
+    "android": {
+      "package": "br.com.locomotiva.arrego",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFC53D"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Arrego usa a sua galeria só para você escolher uma foto de perfil. A foto fica salva no seu aparelho e não é enviada para lugar nenhum."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
