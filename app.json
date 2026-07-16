@@ -32,7 +32,9 @@
         {
           "photosPermission": "O Arrego usa a sua galeria só para você escolher uma foto de perfil. A foto fica salva no seu aparelho e não é enviada para lugar nenhum."
         }
-      ]
+      ],
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

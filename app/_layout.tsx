@@ -121,7 +121,9 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   splash: {
-    ...StyleSheet.absoluteFillObject,
+    // RN 0.86 removeu `absoluteFillObject`: agora `absoluteFill` já É o objeto
+    // puro (era ele que precisava do sufixo por ser um estilo registrado).
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
