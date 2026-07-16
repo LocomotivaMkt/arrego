@@ -13,16 +13,18 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 
 import { expenseBreakdown } from '@/engine/analysis';
 import { fill, firstName, greeting, hashSeed, LINES, pickLine } from '@/engine/persona';
+import type { MonthlyPlan } from '@/engine/plan';
 import {
   useArrego,
   useFinancialData,
+  usePlan,
   useProjections,
   useSnapshot,
   useTopInsight,
 } from '@/store/useArrego';
 import { HIT_SLOP, MIN_TOUCH, palette, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
-import type { Cents, Goal, GoalProjection, InsightSeverity } from '@/types/models';
+import type { CategorySlice, Cents, Goal, GoalProjection, InsightSeverity } from '@/types/models';
 import { addMonths, formatMonthLong, humanizeMonths, monthKeyFromISO, todayISO } from '@/utils/date';
 import { formatCents, formatPercent, ratio } from '@/utils/money';
 import {
@@ -46,6 +48,7 @@ const ROTA_PERFIL = '/perfil';
 const ROTA_CONVERSA = '/conversa';
 const ROTA_GRANA = '/(tabs)/grana';
 const ROTA_OBJETIVOS = '/(tabs)/objetivos';
+const ROTA_PLANO = '/plano';
 
 /** Quantas metas cabem no Início antes de a tela virar lista de metas. */
 const METAS_NO_INICIO = 3;
@@ -86,6 +89,27 @@ function legendaDaMeta(projection: GoalProjection): string {
   return `${guardado} · ${humanizeMonths(projection.monthsAtCurrentPace)} no ritmo de hoje`;
 }
 
+/**
+ * O plano em uma frase. Os dois casos-limite não são preciosismo:
+ *
+ * - GUARDA ZERO acontece com a reserva cheia e nenhuma meta pendente — aí o
+ *   motor manda a sobra inteira para o lazer de propósito. "Guarda R$ 0,00"
+ *   soaria como falha num plano que está certo, então a frase vira convite.
+ * - LAZER ZERO acontece quando a sobra é tão pequena que 20% dela arredonda
+ *   para nada. Prometer "gasta R$ 0,00 sem culpa" seria deboche.
+ */
+function resumoDoPlano(plano: MonthlyPlan): string {
+  const guardaCents = plano.reservaCents + plano.objetivosCents;
+
+  if (guardaCents === 0) {
+    return `Sem meta pendente, os ${formatCents(plano.lazerCents)} são todos seus. Cria um objetivo e parte disso vira futuro.`;
+  }
+  if (plano.lazerCents === 0) {
+    return `Guarda ${formatCents(guardaCents)}. O que sobra é pequeno demais pra separar lazer sem mentir.`;
+  }
+  return `Guarda ${formatCents(guardaCents)}, gasta ${formatCents(plano.lazerCents)} sem culpa.`;
+}
+
 export default function Inicio() {
   const { colors } = useTheme();
 
@@ -98,6 +122,7 @@ export default function Inicio() {
   const snapshot = useSnapshot();
   const projections = useProjections();
   const insight = useTopInsight();
+  const plano = usePlan();
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -123,6 +148,39 @@ export default function Inicio() {
   );
 
   const fatias = useMemo(() => expenseBreakdown(data, month), [data, month]);
+
+  // Os três baldes viram fatias de gráfico. Os centavos saem prontos do motor —
+  // aqui só se calcula `share`, e contra `freeCents` porque é exatamente isso
+  // que os três somam quando o plano é viável: a barra desenha a sobra inteira,
+  // não uma fração dela.
+  //
+  // O balde zerado FICA na lista (a reserva cheia vale R$ 0). A StackedBar não
+  // desenha fatia sem área, mas colore pelo índice na lista ORIGINAL — tirar o
+  // zero daqui deslocaria a cor de todo mundo depois dele e a Legend passaria a
+  // apontar para o segmento errado.
+  const baldes = useMemo<CategorySlice[]>(
+    () => [
+      {
+        key: 'reserva',
+        label: 'Reserva',
+        amountCents: plano.reservaCents,
+        share: ratio(plano.reservaCents, plano.freeCents),
+      },
+      {
+        key: 'objetivos',
+        label: 'Objetivos',
+        amountCents: plano.objetivosCents,
+        share: ratio(plano.objetivosCents, plano.freeCents),
+      },
+      {
+        key: 'lazer',
+        label: 'Lazer',
+        amountCents: plano.lazerCents,
+        share: ratio(plano.lazerCents, plano.freeCents),
+      },
+    ],
+    [plano],
+  );
 
   // Não existe seletor para isto: `goalSavedCents` é acumulado de todos os
   // tempos e o snapshot não fala de depósito. Filtrar um mês e somar não é
@@ -331,6 +389,64 @@ export default function Inicio() {
         ) : null}
 
         {/*
+          Vem logo depois da fala da Arrego de propósito: a pessoa acabou de ler
+          quanto sobra e a próxima pergunta na cabeça dela é "e agora, o que eu
+          faço?". Fica ANTES da KPI row porque KPI é retrospecto ("entrou",
+          "comprometido") e o plano é o que fazer a seguir.
+
+          Tom `surface`, não `brand`: o amarelo já é do card da Arrego quando a
+          notícia é boa, e dois amarelos empilhados não teriam hierarquia nenhuma.
+        */}
+        <Card>
+          <View style={styles.planoContent}>
+            <AppText variant="subheading">O plano deste mês</AppText>
+
+            {plano.viable ? (
+              <>
+                <View style={styles.chart}>
+                  <StackedBar slices={baldes} height={10} />
+                  {/* Obrigatória: sem ela os baldes viram três cores sem nome. */}
+                  <Legend slices={baldes} />
+                </View>
+
+                <AppText variant="body">{resumoDoPlano(plano)}</AppText>
+
+                {/*
+                  `ghost` e não `primary`: o amarelo desta tela é do botão da
+                  Arrego, logo acima. Dois botões de marca a 100px um do outro
+                  competem e nenhum vira "a próxima coisa a fazer".
+                */}
+                <Button
+                  label="Ver o plano completo"
+                  onPress={() => abrir(ROTA_PLANO)}
+                  variant="ghost"
+                  full
+                />
+              </>
+            ) : (
+              <>
+                {/*
+                  Sem sobra não existem baldes, e desenhar três zeros seria fingir
+                  um plano. A nota do motor já distingue os dois motivos (nada
+                  cadastrado x gasto maior que a renda) — repetir a regra aqui
+                  criaria uma segunda fonte de verdade para a mesma frase.
+                */}
+                <AppText variant="body">
+                  {plano.notes[0] ?? 'Ainda não dá pra dividir o que não sobrou.'}
+                </AppText>
+
+                <Button
+                  label="Entender por que"
+                  onPress={() => abrir(ROTA_PLANO)}
+                  variant="ghost"
+                  full
+                />
+              </>
+            )}
+          </View>
+        </Card>
+
+        {/*
           Três lado a lado não cabem: "R$ 2.000,00" no tamanho `heading` mede uns
           106px e um terço da tela deixa ~90px de conteúdo — o número quebraria no
           meio ("2.000,0" / "0"). Com base de 150px o grid embrulha sozinho (2 + 1
@@ -466,6 +582,7 @@ const styles = StyleSheet.create({
 
   insightBlock: { gap: spacing.md },
   insightContent: { gap: spacing.md },
+  planoContent: { gap: spacing.md },
   criticalEdge: { borderWidth: 2 },
   evidence: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.sm },
 

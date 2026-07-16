@@ -11,11 +11,13 @@
  * o app inteiro em ficção, e aí nenhuma projeção daqui vale nada.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { router, type Href } from 'expo-router';
 import { emergencyFundTarget } from '@/engine/analysis';
 import { fill, firstName, hashSeed, LINES, pickLine } from '@/engine/persona';
-import { useArrego, useProjections, useSnapshot } from '@/store/useArrego';
+import type { GoalAllocation } from '@/engine/plan';
+import { useArrego, usePlan, useProjections, useSnapshot } from '@/store/useArrego';
 import { HIT_SLOP, MIN_TOUCH, radius, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import type {
@@ -36,6 +38,7 @@ import {
   DayField,
   EmptyState,
   Field,
+  InkSurface,
   ListRow,
   Meter,
   MoneyText,
@@ -103,6 +106,23 @@ const GOALS_OVERFLOW_LINES: readonly string[] = [
   'Seus prazos somados pedem {valor} a mais do que você tem por mês. Isso não é fracasso, é agenda cheia. Escolhe: {meta} sai da fila do prazo, ou você refaz as datas.',
   '{valor} por mês é o tamanho do exagero dos seus prazos. Cada meta sozinha é razoável; juntas, não cabem. Tira o prazo de {meta} — ela continua existindo, só para de cobrar hora.',
 ];
+
+/* ─────────────────────────────── Navegação ──────────────────────────────── */
+
+/**
+ * O plano completo — a tela que mostra a divisão inteira do mês.
+ *
+ * O parâmetro `string` (em vez do literal `'/plano'`) é o que deixa o cast
+ * passar, e é o mesmo cast de app/(tabs)/index.tsx, preso num lugar só:
+ * `typedRoutes` monta a união de rotas a partir dos arquivos que existem em
+ * `app/`, então um literal que ainda não virou arquivo não "sobrepõe" a união e
+ * o compilador recusa a conversão. Com `string` na porta, a checagem volta a ser
+ * a do expo-router em runtime.
+ */
+function abrirPlano(): void {
+  const rota: string = '/plano';
+  router.push(rota as Href);
+}
 
 /* ──────────────────────────────── Gramática ─────────────────────────────── */
 
@@ -253,7 +273,14 @@ function DepositLog({
                   pressed && styles.pressed,
                 ]}
               >
-                <AppText variant="caption" tone="secondary">
+                {/*
+                  Tinta explícita: este Pressable desenha superfície PRÓPRIA
+                  (surfaceSunken) dentro de um card que pode ser tone="brand" —
+                  o da meta batida. Sem isto o ✕ herda `onBrand` do InkSurface e
+                  vira #17150F sobre #232019 no tema escuro: 1.12:1, some. E é
+                  justamente o botão que conserta um depósito digitado errado.
+                */}
+                <AppText variant="caption" style={{ color: colors.ink.secondary }}>
                   ✕
                 </AppText>
               </Pressable>
@@ -265,11 +292,51 @@ function DepositLog({
   );
 }
 
+/* ────────────────────────────── Selo de posição ─────────────────────────── */
+
+/**
+ * "#1", "#2" — a resposta para "qual é a prioridade?", no lugar mais visível do
+ * card.
+ *
+ * `brand.amberSoft` é SUPERFÍCIE de marca: clara nos dois temas, porque não é
+ * tematizada. Por isso a tinta é `onBrand` e não `ink.primary` — no tema escuro
+ * o primary vira branco e o "#1" sumiria (1.09:1 sobre o #FFF3D1). No tema claro
+ * as duas são a mesma tinta (#17150F), então ali nada muda. `InkSurface` faz
+ * disso estrutura em vez de convenção: quem escrever dentro do selo depois já
+ * nasce com a tinta certa.
+ *
+ * A borda existe porque o amarelo suave sozinho quase não se separa do branco do
+ * card — sem ela o selo vira um fantasma justo no elemento que precisa gritar.
+ *
+ * Vira pílula sozinho quando o número passa de um dígito: com largura fixa, "#10"
+ * seria cortado.
+ */
+function RankBadge({ rank }: { rank: number }) {
+  const { colors } = useTheme();
+
+  return (
+    <InkSurface onBrand>
+      <View
+        accessible
+        accessibilityLabel={`Prioridade número ${rank}`}
+        style={[
+          styles.rankBadge,
+          { backgroundColor: colors.brand.amberSoft, borderColor: colors.brand.amberDeep },
+        ]}
+      >
+        <AppText variant="bodyStrong">{`#${rank}`}</AppText>
+      </View>
+    </InkSurface>
+  );
+}
+
 /* ────────────────────────────── Card da meta ────────────────────────────── */
 
 type GoalCardProps = {
   goal: Goal;
   projection: GoalProjection;
+  /** O que o plano do mês reservou pra ela. Null = o motor não a ranqueia. */
+  allocation: GoalAllocation | null;
   deposits: GoalDeposit[];
   expanded: boolean;
   onToggleLog: () => void;
@@ -282,6 +349,7 @@ type GoalCardProps = {
 function GoalCard({
   goal,
   projection,
+  allocation,
   deposits,
   expanded,
   onToggleLog,
@@ -344,6 +412,7 @@ function GoalCard({
     <Card>
       <View style={styles.cardStack}>
         <View style={styles.cardHead}>
+          {allocation !== null ? <RankBadge rank={allocation.rank} /> : null}
           <AppText style={styles.cardEmoji}>{goal.emoji}</AppText>
           <View style={styles.cardTitle}>
             <AppText variant="subheading" numberOfLines={2}>
@@ -352,6 +421,15 @@ function GoalCard({
             <Badge label={status.badge} severity={status.severity} />
           </View>
         </View>
+
+        {/* O porquê da posição sai inteiro do motor (`rankReason`) e fica em
+            largura cheia, embaixo do cabeçalho: dentro da coluna do título ele
+            seria espremido ao lado do emoji e do selo. */}
+        {allocation !== null ? (
+          <AppText variant="small" tone="secondary">
+            {allocation.rankReason}
+          </AppText>
+        ) : null}
 
         <Meter progress={projection.progress} label={progressLabel} tone={status.meter} />
 
@@ -369,6 +447,21 @@ function GoalCard({
                 {status.caption}
               </AppText>
             ) : null}
+          </View>
+        ) : null}
+
+        {/* Encostado no botão de guardar de propósito: é a resposta ("quanto")
+            colada na ação ("guardar"). O número é do plano, não daqui. */}
+        {allocation !== null ? (
+          <View style={styles.mathRow}>
+            <AppText variant="small" tone="secondary">
+              Guardar este mês
+            </AppText>
+            {allocation.suggestedCents === 0 ? (
+              <Badge label="Sem verba este mês" severity="warning" />
+            ) : (
+              <MoneyText cents={allocation.suggestedCents} tabular />
+            )}
           </View>
         ) : null}
 
@@ -429,7 +522,21 @@ function IconPicker({ value, onChange }: { value: string; onChange: (emoji: stri
                 pressed && styles.pressed,
               ]}
             >
-              <AppText style={styles.iconEmoji}>{icon.emoji}</AppText>
+              {/*
+                A célula selecionada é amarela, então a tinta tem de ser onBrand.
+                Hoje todos os GOAL_ICONS são emoji (glifo colorido ignora `color`)
+                e nada aparece — mas o primeiro ícone de texto que entrar aqui
+                acende branco sobre amarelo no tema escuro. Mesma armadilha que
+                Chip.tsx e Button.tsx já fecharam.
+              */}
+              <AppText
+                style={[
+                  styles.iconEmoji,
+                  { color: selected ? colors.ink.onBrand : colors.ink.primary },
+                ]}
+              >
+                {icon.emoji}
+              </AppText>
             </Pressable>
           );
         })}
@@ -471,9 +578,13 @@ export default function ObjetivosScreen() {
 
   const snapshot = useSnapshot();
   const projections = useProjections();
+  const plan = usePlan();
 
   const [goalSheet, setGoalSheet] = useState<GoalSheetState | null>(null);
   const [form, setForm] = useState<GoalForm>(EMPTY_FORM);
+
+  /** Meta recém-criada esperando o plano dizer em que posição ela caiu. */
+  const [justCreatedGoalId, setJustCreatedGoalId] = useState<string | null>(null);
 
   const [depositGoalId, setDepositGoalId] = useState<string | null>(null);
   const [depositDirection, setDepositDirection] = useState<'in' | 'out'>('in');
@@ -508,14 +619,40 @@ export default function ObjetivosScreen() {
     return map;
   }, [deposits]);
 
-  const rows = useMemo(
-    () =>
-      goals.flatMap((goal) => {
-        const projection = projectionById.get(goal.id);
-        return projection ? [{ goal, projection }] : [];
-      }),
-    [goals, projectionById],
-  );
+  const allocationByGoal = useMemo(() => {
+    const map = new Map<string, GoalAllocation>();
+    for (const allocation of plan.allocations) map.set(allocation.goalId, allocation);
+    return map;
+  }, [plan.allocations]);
+
+  /**
+   * A lista na ordem do plano: rank 1 primeiro.
+   *
+   * O motor só ranqueia meta em aberto e com saldo a guardar, então meta
+   * concluída e meta em 100% saem de `allocations` e caem aqui com `allocation`
+   * null — sem número, e no fim da fila. É o lugar certo pra elas: a fila existe
+   * pra dizer o que fazer com o dinheiro deste mês, e essas duas não pedem mais
+   * dinheiro nenhum. Entre si, mantêm a ordem que a store já dava (`sort` é
+   * estável desde ES2019).
+   *
+   * Plano inviável devolve `allocations` vazio: ninguém é numerado e a ordem fica
+   * exatamente a de antes. A tela continua de pé sem plano.
+   */
+  const rows = useMemo(() => {
+    const base = goals.flatMap((goal) => {
+      const projection = projectionById.get(goal.id);
+      if (projection === undefined) return [];
+      return [{ goal, projection, allocation: allocationByGoal.get(goal.id) ?? null }];
+    });
+
+    return base.sort((a, b) => {
+      if (a.allocation === null || b.allocation === null) {
+        if (a.allocation === b.allocation) return 0;
+        return a.allocation === null ? 1 : -1;
+      }
+      return a.allocation.rank - b.allocation.rank;
+    });
+  }, [goals, projectionById, allocationByGoal]);
 
   const hasEmergencyGoal = goals.some((goal) => goal.kind === 'emergency');
   const suggestedEmergency = emergencyFundTarget(snapshot);
@@ -600,6 +737,10 @@ export default function ObjetivosScreen() {
     const targetDate = form.targetMonth !== null ? dateInMonth(31, form.targetMonth) : null;
 
     if (goalSheet.mode === 'new') {
+      // `addGoal` devolve void, então o id da meta nova sai da diferença entre o
+      // antes e o depois. Procurar pelo rótulo acharia a meta errada no dia em
+      // que existirem duas com o mesmo nome — e nada impede que existam.
+      const before = new Set(useArrego.getState().goals.map((goal) => goal.id));
       void addGoal({
         label: form.label.trim(),
         kind: 'custom',
@@ -607,6 +748,12 @@ export default function ObjetivosScreen() {
         targetCents: form.targetCents,
         targetDate,
         priority: form.priority,
+      }).then(() => {
+        // A store engole o erro de escrita em `state.error` em vez de rejeitar:
+        // se a gravação falhou não existe meta nova, `created` vem undefined e
+        // ninguém anuncia posição de uma meta que não foi salva.
+        const created = useArrego.getState().goals.find((goal) => !before.has(goal.id));
+        setJustCreatedGoalId(created?.id ?? null);
       });
     } else {
       // `kind` fica de fora do patch de propósito: editar a reserva de
@@ -709,6 +856,57 @@ export default function ObjetivosScreen() {
       ],
     );
   };
+
+  /* ── A posição da meta recém-criada ── */
+
+  /**
+   * "Criei a meta — e aí, é prioridade de quê?". A resposta chega aqui.
+   *
+   * Precisa ser efeito, e não o `.then` do `addGoal`: o rank só existe depois
+   * que o motor remonta o plano em cima da store nova, e o plano só chega nesta
+   * tela pelo `usePlan()` do render. O `.then` guarda QUEM perguntou; o efeito
+   * responde quando o número existe. A ordem é garantida — a store faz o `set`
+   * antes de resolver a promise, então quando `justCreatedGoalId` acende, `goals`
+   * e `plan` já contam com a meta nova.
+   *
+   * Alert e não card na tela: a pessoa acabou de tocar "Nova meta" no PÉ da
+   * lista, e um card no topo nasceria fora da tela — a resposta que ela pediu
+   * agora chegaria depois de um scroll que ninguém dá. O selo "#N" no card fica
+   * de resposta permanente; o Alert é a resposta do momento.
+   */
+  useEffect(() => {
+    if (justCreatedGoalId === null) return;
+    const goal = goals.find((item) => item.id === justCreatedGoalId);
+    setJustCreatedGoalId(null);
+    if (goal === undefined) return;
+
+    const allocation = allocationByGoal.get(goal.id) ?? null;
+
+    if (allocation === null) {
+      // Sem sobra não existe fila. Prometer posição aqui seria inventar uma
+      // ordem que o motor não calculou.
+      Alert.alert(
+        `${goal.label} entrou na lista`,
+        'Posição eu não consigo dar: este mês não sobra nada pra dividir, então não existe fila pra ela entrar. Corta um gasto ou registra o que entrou, e eu monto a ordem na hora.',
+        [
+          { text: 'Ver o plano completo', onPress: abrirPlano },
+          { text: 'Beleza', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+
+    Alert.alert(
+      `${goal.label} é a sua #${allocation.rank}`,
+      allocation.suggestedCents === 0
+        ? `${allocation.rankReason}\n\nEste mês ela fica com R$ 0,00: quem está na frente levou a sobra inteira. Ela anda assim que a fila andar — ou você sobe a prioridade dela em "Editar".`
+        : `${allocation.rankReason}\n\nGuardar este mês: ${formatCents(allocation.suggestedCents)}.`,
+      [
+        { text: 'Ver o plano completo', onPress: abrirPlano },
+        { text: 'Beleza', style: 'cancel' },
+      ],
+    );
+  }, [justCreatedGoalId, goals, allocationByGoal]);
 
   /* ── Render ── */
 
@@ -828,11 +1026,31 @@ export default function ObjetivosScreen() {
           />
         ) : (
           <>
-            {rows.map(({ goal, projection }) => (
+            {/* Explica a numeração que vem logo abaixo, então aparece exatamente
+                quando existe numeração: plano inviável não ranqueia ninguém, e
+                aí este card estaria descrevendo uma ordem que não está na tela. */}
+            {plan.allocations.length > 0 ? (
+              <Card tone="sunken">
+                <View style={styles.cardStack}>
+                  <AppText variant="body">
+                    {'A ordem não é opinião minha, é a sua: reserva primeiro, depois o que você marcou como mais importante, e prazo ganha de "algum dia".'}
+                  </AppText>
+                  <Button
+                    label="Ver o plano completo"
+                    variant="secondary"
+                    onPress={abrirPlano}
+                    full
+                  />
+                </View>
+              </Card>
+            ) : null}
+
+            {rows.map(({ goal, projection, allocation }) => (
               <GoalCard
                 key={goal.id}
                 goal={goal}
                 projection={projection}
+                allocation={allocation}
                 deposits={depositsByGoal.get(goal.id) ?? []}
                 expanded={expandedGoalId === goal.id}
                 onToggleLog={() => setExpandedGoalId(expandedGoalId === goal.id ? null : goal.id)}
@@ -1024,6 +1242,16 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   cardEmoji: { fontSize: 34, lineHeight: 40 },
   cardTitle: { flex: 1, gap: spacing.xs, alignItems: 'flex-start' },
+  rankBadge: {
+    // `minWidth` e não `width`: círculo em "#1", pílula em "#10".
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
   lines: { gap: spacing.xs },
   cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   logToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH },

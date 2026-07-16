@@ -30,6 +30,11 @@
  *                                                ("1 assinatura" / "3 assinaturas"),
  *                                                para não gerar "1 assinaturas".
  *
+ * Só nos bancos do plano (`plan*`), porque lá os três baldes aparecem na mesma
+ * frase e um {valor} genérico não diria qual é qual:
+ *   {reserva}  o balde da reserva       {objetivos} o balde dos objetivos
+ *   {lazer}    o balde do lazer                     (todos já formatados)
+ *
  * Ao acrescentar falas: mínimo de 6 por banco, senão a repetição fica óbvia.
  * Escreva a fala inteira sem saber o número — se ela só funciona com um valor
  * específico, ela vai soar absurda com outro.
@@ -326,5 +331,121 @@ export const LINES = {
     'Você voltou, que bom. Só que os dados não se atualizaram sozinhos nesse tempo — nenhum app faz isso. Passa o olho nos gastos e ajusta o que mudou.',
     '{tempo} sem aparecer. Eu não guardo mágoa, eu guardo dados, e os seus estão velhos. Atualiza a renda e os gastos e a gente recomeça do zero, sem cobrança.',
     'Olha quem apareceu. Seus números estão parados no tempo há {tempo}. Não vou fazer drama: atualiza os gastos e eu paro de falar bobagem.',
+  ],
+
+  // ─────────────────────────── O PLANO DO MÊS ────────────────────────────
+  // Bancos consumidos pela tela do plano. A régua de tom continua a mesma; o
+  // que muda é que aqui a Arrego está dividindo dinheiro, e dividir dinheiro
+  // é onde ela mais corre o risco de soar como palestrante. Não soa: ela dá o
+  // número, dá o motivo e sai.
+
+  /**
+   * O plano fecha e cabe. Elogio passivo-agressivo — ela reconhece e reclama
+   * de não ter do que reclamar. {reserva} {objetivos} {lazer}, nunca {valor}:
+   * as três fatias aparecem juntas e precisam de nome próprio.
+   */
+  planReady: [
+    'Plano do mês montado, e ele fecha: {reserva} pra reserva, {objetivos} pras metas, {lazer} pra viver. Passei um tempo procurando o erro. Não tem. Faz os três depósitos e me deixa sem assunto de novo mês que vem.',
+    '{nome}, seu dinheiro finalmente tem endereço: {reserva} na reserva, {objetivos} nos objetivos, {lazer} no lazer. A parte difícil não foi essa divisão — foi você chegar aqui com sobra. Agora é só executar os três.',
+    'Olha só, coube tudo: {reserva} de reserva, {objetivos} de meta e ainda {lazer} de lazer sem culpa. Não vou fingir surpresa. Tá, vou. Cumpre os três números e a gente repete isso em 30 dias.',
+    'Plano fechado, {nome}. {reserva} pra emergência, {objetivos} pro que você quer, {lazer} pro presente. Três números, nenhum deles opcional — inclusive o do lazer. Transfere hoje, antes que o mês tenha ideias próprias.',
+    'Dividi tudo: {reserva} de reserva, {objetivos} de metas, {lazer} de lazer. Bonito assim, parado na tela. Só que plano na tela rende exatamente 0% — move os valores hoje e ele começa a existir.',
+    '{nome}, seu mês cabe em três caixas: {reserva} que te protege, {objetivos} que te leva a algum lugar e {lazer} que te faz aguentar as outras duas. Não é plano de monge, é plano que sobrevive ao fim de semana. Segue ele.',
+    'Sem drama esse mês: {reserva} pra reserva, {objetivos} pras metas, {lazer} pra gastar de propósito. Conferi duas vezes procurando defeito, por esporte. Agenda os depósitos pro dia que a grana cai e pronto.',
+  ],
+
+  /** O plano fecha, mas raspando. Reconhece a organização sem chamar de conforto. */
+  planTight: [
+    'O plano fecha. Fecha raspando: {valor} pra dividir, {pct} da sua renda, e cada linha dele depende de nada dar errado. Como coisas dão errado, segue o plano hoje e acha um gasto pra cortar até o fim do mês.',
+    '{nome}, dá pra dividir {valor}. Dá. Só que repartir {pct} da renda entre reserva, meta e lazer é dividir um pão de queijo entre três pessoas: todo mundo come, ninguém sai satisfeito. Corta uma despesa e o pão cresce.',
+    'Plano montado com {valor} — {pct} do que entra. Ele funciona no papel, e no papel não existe imprevisto. Usa ele esse mês e, em paralelo, escolhe uma despesa pra matar. Mês que vem a divisão para de ser malabarismo.',
+    'Sobram {pct} pra repartir: {valor} pra três baldes. É pouco, mas é seu e está organizado — mais do que a maioria consegue dizer. Só não confunde plano apertado com plano confortável. Um susto de R$ 200 desmonta esse aqui.',
+    '{valor} pra dividir em três. Vou ser honesta: as fatias vão sair magras e você vai olhar pra elas com desdém. Olha assim mesmo — fatia magra que existe vence fatia gorda imaginária. Depois volta nos gastos e libera mais.',
+    'O plano cabe: {valor}, {pct} de margem. Cabe do jeito que mala fecha quando você senta em cima. Faz os depósitos no começo do mês, senão o mês gasta a sua fatia por você e você nem vê passar.',
+    '{nome}, {valor} é o que tem pra hoje, e eu prefiro dividir pouco a fingir que é muito. Trata cada real do plano como combinado, não como sugestão. Se quiser respirar, um gasto recorrente a menos muda esse {pct}.',
+  ],
+
+  /**
+   * Não sobra nada pra dividir. Sem deboche: quem está no vermelho já sabe,
+   * e repetir com piada não informa nada. {valor} é o tamanho do buraco — a
+   * mesma convenção de `negativeFlow`, pra fala e número não se contradizerem.
+   */
+  planImpossible: [
+    'Não tem o que dividir esse mês. Seus compromissos passaram da renda em {valor}, e plano só existe depois que sobra. Não é sermão, é a ordem das coisas. A gente acha {valor} nos seus gastos primeiro e o plano nasce sozinho.',
+    '{nome}, eu montaria o plano agora, mas estaria distribuindo dinheiro que não existe — e isso é o que o cartão faz, não é o que eu faço. Faltam {valor}. Abre seus gastos comigo e a gente procura esse valor, um item de cada vez.',
+    'Zero pra dividir. Antes que isso pese: sobra zero é um estado do mês, não um veredito sobre você. O número que muda tudo é {valor} — é o que precisa sair das contas pro plano existir. Começa pelo maior gasto da lista.',
+    'Sem sobra não tem reserva, não tem meta e não tem lazer. Tem uma conta pra resolver: {valor}. É a única tarefa do mês, e é uma só. Vamos olhar suas despesas e escolher o que sai.',
+    'O plano está vazio porque o mês está {valor} no vermelho. Vou pular a parte em que eu faço graça e ir direto na parte que serve: escolhe uma despesa pra cortar hoje. Uma. Depois a gente vê a segunda.',
+    'Você abriu o plano e não tem plano. Sei que é frustrante. A verdade é simples: faltam {valor} pra sobrar o primeiro real, e nenhuma divisão inteligente inventa esse real. Corta {valor} e eu volto com os três baldes prontos.',
+    'Enquanto sair mais do que entra, dividir é fantasia. Faltam {valor}. Não precisa resolver tudo hoje — precisa tirar {valor} de algum lugar desse mês. Abre os gastos e me diz o que dá pra sacrificar.',
+  ],
+
+  /** Ainda não existe reserva. {valor} é o ALVO dela, como em `noEmergencyFund`. */
+  planNoEmergency: [
+    'Seu plano tem meta, tem lazer e não tem chão: a reserva ainda não existe. Ela vem antes das outras não por ser bonita — é a única que impede um imprevisto de virar parcela. O alvo é {valor}. Cria ela e o resto passa a fazer sentido.',
+    '{nome}, dá pra dividir dinheiro sem reserva. Dá pra andar de moto sem capacete também. O alvo é {valor} e o primeiro depósito pode ser ridículo de pequeno — o que ele não pode é não existir. Cria a meta "Emergência".',
+    'Antes de qualquer objetivo, a reserva. Sei que é a meta mais sem graça daqui: não tem foto, não tem data, não dá pra contar pra ninguém. Também é a única que segura o resto de pé quando o mês desanda. Alvo: {valor}. Cria hoje.',
+    'Falta a peça que sustenta o plano inteiro: {valor} de reserva. Sem ela, toda meta que você criar está apostando que nada vai quebrar pelos próximos meses. Nunca deu certo pra ninguém. Abre objetivos e cria a reserva.',
+    'Seu plano começa torto, {nome}: sem reserva, o primeiro pneu furado desmonta os três baldes de uma vez. Alvo: {valor}. Não olha pro total agora, olha pro botão de criar a meta. O total a gente resolve mês a mês.',
+    'A reserva não compete com seus sonhos, ela protege seus sonhos. Sem {valor} guardados, o imprevisto não te tira R$ 300: ele te tira a meta inteira e ainda cobra juros pela retirada. Cria a reserva antes de dividir mais nada.',
+    'Sem reserva, isso aqui é uma lista de intenções bem formatada. Com {valor} de reserva, vira plano. A diferença entre os dois é um botão. Cria a meta e volta.',
+  ],
+
+  /** Tempo pra encher a reserva no ritmo do plano. {valor} é o depósito mensal. */
+  planEmergencyEta: [
+    'No ritmo do plano — {valor} por mês — sua reserva fica cheia em {tempo}. Não é rápido, e não existe versão rápida disso pra quase ninguém. Existe a versão que termina. Mantém o depósito e ela termina.',
+    '{tempo} até a reserva ficar pronta, depositando {valor} por mês. Parece longe. {tempo} passam de qualquer jeito — a única diferença é se no fim tem dinheiro lá ou não. Programa o depósito e esquece que ele existe.',
+    '{nome}, {valor} por mês fecham sua reserva em {tempo}. Vou te poupar da fase "e se eu jogar tudo lá e terminar na metade do tempo": quem faz isso desiste no segundo mês. Vai de {valor} e chega inteiro.',
+    'Sua reserva estará completa em {tempo} nesse ritmo. E ela já trabalha antes disso: cada {valor} depositado é um pedaço de susto que não vira dívida. Não precisa estar cheia pra servir. Continua.',
+    'Conta simples: {valor} por mês, {tempo} de paciência, reserva cheia. Sem juro mágico, sem atalho, sem gente de camisa branca no YouTube. Se der pra acelerar, acelera. Se não der, {tempo} está ótimo — só não zera nenhum mês.',
+    '{tempo} é o que falta pra você parar de depender de sorte, no ritmo de {valor} por mês. Marca no calendário se ajudar, mas o que ajuda de verdade é o depósito automático no dia em que a grana cai.',
+    'A reserva fecha em {tempo} com {valor} mensais. Guarda esse prazo em algum canto da cabeça: no dia em que ele acabar, você vira aquela pessoa que consegue dizer "não" pras coisas. Segue depositando.',
+  ],
+
+  /**
+   * Uma meta ficou com R$ 0 porque não coube. Sem crueldade e sem cobrança: a
+   * pessoa não fez nada errado, a conta é que não alcança. O erro de tom aqui
+   * seria transformar um limite de aritmética em falha de caráter.
+   */
+  planGoalStarved: [
+    '{meta} ficou com R$ 0 esse mês. Não é castigo e você não fez nada errado: a sobra acabou antes de chegar nela. Ela continua na fila, no lugar dela. Se quiser que ande agora, sobe a prioridade e alguém de cima cede o lugar.',
+    'Esse mês {meta} não recebeu nada. Cinco reais nela não mudariam sua vida e ainda atrasariam a meta da frente — a conta preferiu ser honesta a ser simpática. Mês que vem ela disputa de novo, sem penalidade nenhuma.',
+    '{nome}, {meta} está parada esse mês. Espalhar migalha em todas as metas é o jeito mais eficiente de não terminar nenhuma. Ela espera a vez. Se a espera te incomoda, muda a prioridade — a fila é sua, não minha.',
+    'R$ 0 em {meta}. Sei que dá uma pontada ver isso escrito. Mas meta parada um mês não é meta perdida: é meta atrás de outra que termina antes. Quando a da frente fechar, {meta} herda o valor inteiro.',
+    '{meta} não coube esse mês. A conta não alcançou, só isso — não tem julgamento embutido nesse zero. Duas saídas honestas: espera a fila andar, ou abre os gastos e cria sobra pra ela. As duas valem.',
+    'Zero pra {meta} nesse mês. A parte chata é que o dinheiro que sobra é finito e ele foi pra quem estava na frente. Se {meta} importa mais do que a ordem diz, arruma a ordem. Se não importa, deixa ela cozinhar em paz.',
+    '{meta} ficou de fora da divisão. Não some, não zera, não perde o que já juntou — só não recebe agora. Revê a prioridade dela quando quiser; até lá ela fica guardada exatamente como está.',
+  ],
+
+  /** Metas demais brigando pela mesma sobra. {valor} é o que existe pra repartir. */
+  planTooManyGoals: [
+    'Você tem meta demais disputando {valor}. Divide isso por todas e cada uma anda um centímetro por mês, o que na prática é não andar. Escolhe duas pra valer e manda o resto pra "Algum dia" — elas continuam lá, só param de se atrapalhar.',
+    '{nome}, repartir {valor} entre essa fila toda dá uma sensação ótima de estar cuidando de tudo e um resultado péssimo: nada termina. Meta que não termina não vira nada. Despriorize as três menos urgentes e olha a diferença.',
+    'Tem mais sonho do que sobra: {valor} não esticam. Não é sobre querer menos, é sobre querer em ordem. Bota as menos urgentes em "Algum dia" e deixa {valor} inteiros empurrarem uma meta até o fim.',
+    'Suas metas estão em fila dupla brigando por {valor}. Sabe o que acontece com todas elas nesse formato? Nada, lentamente. Escolhe a que você mais quer terminar esse ano e rebaixa duas. Terminar uma dá mais gás que arrastar cinco.',
+    '{valor} pra dividir e uma lista que pede o triplo. A aritmética não briga com você, ela só entrega pouco pra todo mundo. Corta a lista pela metade — não deleta, despriorize. Você recupera as outras quando as primeiras fecharem.',
+    'Ambição eu aprovo. Aritmética não me deixa. {valor} espalhados em metas demais viram progresso invisível, e progresso invisível é o que faz gente desistir. Deixa duas ativas e manda as outras pro fim da fila.',
+    '{nome}, cada meta que você ativa tira dinheiro das outras — {valor} é tudo que existe pra repartir. Isso não é motivo pra sonhar menos, é motivo pra sonhar em série em vez de em paralelo. Despriorize as que podem esperar.',
+  ],
+
+  /**
+   * Por que o app RESERVA dinheiro pro lazer em vez de mandar guardar tudo.
+   *
+   * A fala mais importante do lote: ela defende uma decisão de produto que
+   * parece errada à primeira vista (ver o cabeçalho de `plan.ts`). Precisa
+   * soar como amiga que já viu isso dar errado, não como manual — por isso o
+   * argumento é sempre a MESMA cena concreta (aguenta um mês, estoura, some),
+   * nunca "estudos mostram". E termina mandando gastar, sem meio-termo: um
+   * lazer autorizado pela metade é pior que lazer nenhum.
+   */
+  planLeisureDefense: [
+    'Separei {valor} pro seu lazer — {pct} da renda — e não, não foi erro de conta. Plano que proíbe tudo dura 11 dias. No 12º você estoura, se sente mal e some do app. Prefiro te dar {pct} agora a te perder inteiro depois. Gasta sem pedir licença.',
+    '{nome}, eu podia mandar guardar 100% da sobra. Você ia achar lindo, ia seguir por três semanas e no primeiro aniversário de amigo ia rachar tudo — e não volta mais aqui, porque plano quebrado dá vergonha. {valor} de lazer existe pra essa cena não acontecer. Usa.',
+    'Esse {valor} de lazer não é sobra, é peça estrutural. Já vi esse filme: quem corta 100% do prazer economiza muito por dois meses e devolve tudo no terceiro, com juros e um sentimento ruim de brinde. {pct} de válvula sai mais barato que uma recaída.',
+    'Sim, eu — a que reclama de tudo — estou te mandando gastar {valor}. Motivo: dieta radical de dinheiro termina igual dieta radical de comida. Vai bem até o dia em que não vai, e aí come a geladeira inteira. {pct} da renda pra viver é o que mantém o resto de pé.',
+    '{valor} pro lazer, {pct} da renda, decidido ANTES das metas de propósito. Se lazer for "o que sobrar", ele vira zero — e ninguém aguenta uma vida de zero. Aí a pessoa não abandona o lazer, abandona o plano. Esse dinheiro é o preço de você continuar aqui em dezembro.',
+    'Todo mundo que fala de dinheiro manda guardar tudo. Eu não vou mandar. {pct} da sua renda, {valor}, é seu pra torrar — e essa é a parte do plano que faz as outras acontecerem. Plano seguido 12 meses com 80% de esforço rende muito mais que plano perfeito abandonado em fevereiro. Gasta.',
+    '{valor} de lazer não é a Arrego amolecendo. É a Arrego tendo visto gente demais jurar que ia guardar cada centavo, aguentar seis semanas, estourar num fim de semana e nunca mais abrir um app de finanças na vida. {pct} agora é o seguro contra isso. Gasta seu dinheiro, ele é seu.',
+    'Reservei {valor} pra você gastar à toa. À toa mesmo: sem justificar, sem anotar como "investimento em bem-estar". {pct} da renda com destino "viver". Quem não faz isso de propósito acaba fazendo por impulso, no dobro do valor e com culpa de sobremesa. Escolhe uma coisa boa e gasta.',
   ],
 } as const satisfies LineBank;

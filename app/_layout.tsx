@@ -113,6 +113,7 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="perfil" options={{ title: 'Sua conta' }} />
         <Stack.Screen name="conversa" options={{ title: 'Falar com a Arrego' }} />
+        <Stack.Screen name="plano" options={{ title: 'Plano do mês' }} />
       </Stack>
       {covered ? <Splash /> : null}
     </SafeAreaProvider>

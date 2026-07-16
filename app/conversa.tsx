@@ -33,8 +33,15 @@ import {
   type LineBank,
 } from '@/engine/persona';
 import {
+  lazerShareOfIncome,
+  savingShareOfIncome,
+  type GoalAllocation,
+  type MonthlyPlan,
+} from '@/engine/plan';
+import {
   useArrego,
   useFinancialData,
+  usePlan,
   useProjections,
   useSnapshot,
   useTopInsight,
@@ -231,6 +238,8 @@ type Answer = {
   data: FinancialData;
   snapshot: MonthlySnapshot;
   projections: GoalProjection[];
+  /** A divisão do mês, pronta. Nenhum balde é recalculado aqui — ver `plan.ts`. */
+  plan: MonthlyPlan;
   top: Insight | null;
   profile: Profile | null;
   month: MonthKey;
@@ -244,6 +253,19 @@ const nameOf = (answer: Answer): string => firstName(answer.profile?.name);
 /** "1 assinatura" / "3 assinaturas" — sem isso a fala imprime "1 assinaturas". */
 function pluralize(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+/**
+ * O `rankReason` do motor vem em duas frases: a regra e o porquê dela. Numa
+ * bolha de chat, empilhada com outras três metas, a segunda frase vira parede —
+ * e a primeira já responde "por que essa está aqui". Corta na primeira, sem
+ * reescrever: o texto é do motor, e resumir não é reinterpretar.
+ *
+ * Nada de lookbehind no regex (o Hermes engasga): `indexOf` faz o mesmo aqui.
+ */
+function summarizeReason(reason: string): string {
+  const stop = reason.indexOf('. ');
+  return stop === -1 ? reason : reason.slice(0, stop + 1);
 }
 
 /** Espelha o curto-circuito de `generateInsights`: app recém-instalado. */
@@ -601,6 +623,166 @@ function answerSave(answer: Answer, seed: number): string[] {
 }
 
 /**
+ * O plano não fecha: `{valor}` é o tamanho do buraco, a mesma convenção de
+ * `negativeFlow` e de `planImpossible`. Vive numa função porque as DUAS
+ * perguntas do plano caem aqui — sem sobra não há divisão nem fila, e as duas
+ * mereciam a mesma resposta em vez de uma resposta cada.
+ */
+function planImpossibleAnswer(answer: Answer, seed: number): string[] {
+  return [
+    line(LINES.planImpossible, seed, {
+      nome: nameOf(answer),
+      valor: formatCents(Math.abs(answer.plan.freeCents)),
+    }),
+  ];
+}
+
+/**
+ * "Como eu divido meu dinheiro?" — os três baldes do motor, na ordem dele.
+ *
+ * Nenhuma conta acontece aqui: `plan.ts` já decidiu quanto vai pra cada balde e
+ * por quê (inclusive o lazer sair ANTES das metas, que parece erro e não é —
+ * ver o cabeçalho de lá). A tela só veste os números com a voz.
+ */
+function answerPlan(answer: Answer, seed: number): string[] {
+  const blocked = incomeGuard(answer, seed);
+  if (blocked) return blocked;
+
+  const { plan } = answer;
+  const nome = nameOf(answer);
+
+  // Sem sobra não existe divisão, e distribuir dinheiro que não existe é
+  // exatamente o que o cartão faz. A conta a resolver é o buraco, não o plano.
+  if (!plan.viable) return planImpossibleAnswer(answer, seed);
+
+  const savingShare = savingShareOfIncome(plan);
+  const lazerShare = lazerShareOfIncome(plan);
+  // Idêntico a `snapshot.savingsRate` por construção (os três baldes somam
+  // exatamente `freeCents` quando o plano é viável) — e é o mesmo número que
+  // `answerMonth` e `answerSave` já usam pra escolher o tom. Duas réguas
+  // diferentes pro mesmo mês fariam ela chamar de "raspando" aqui e de "ok" ali.
+  const freeShare = ratio(plan.freeCents, plan.incomeTotalCents);
+
+  const facts = [
+    `${formatMonthLong(plan.month)}, os três baldes:`,
+    `· Reserva: ${formatCents(plan.reservaCents)}`,
+    `· Objetivos: ${formatCents(plan.objetivosCents)}`,
+    `· Lazer: ${formatCents(plan.lazerCents)}`,
+    `= ${formatCents(plan.freeCents)} · ${formatPercent(savingShare)} da renda guardados, ${formatPercent(lazerShare)} pra viver`,
+  ].join('\n');
+
+  const bubbles = [
+    facts,
+    freeShare < RATE_LOW
+      ? line(LINES.planTight, seed, {
+          nome,
+          valor: formatCents(plan.freeCents),
+          pct: formatPercent(freeShare),
+        })
+      : // `planReady` fala das três fatias na mesma frase, então cada uma tem
+        // nome próprio: um {valor} genérico não diria qual é qual.
+        line(LINES.planReady, seed, {
+          nome,
+          reserva: formatCents(plan.reservaCents),
+          objetivos: formatCents(plan.objetivosCents),
+          lazer: formatCents(plan.lazerCents),
+        }),
+  ];
+
+  const { emergency } = plan;
+
+  if (!emergency.exists) {
+    // Aqui {valor} é o ALVO da reserva, não um depósito — mesma convenção de
+    // `noEmergencyFund`.
+    bubbles.push(
+      line(LINES.planNoEmergency, seed, { nome, valor: formatCents(emergency.targetCents) }),
+    );
+  } else if (!emergency.funded && emergency.monthsToFund !== null) {
+    // `monthsToFund` null = a reserva não recebeu nada este mês. Sem ritmo não
+    // existe ETA, e imprimir um prazo aí seria inventar. O R$ 0,00 dela não some
+    // em silêncio: aparece na fila de "Qual meta vem primeiro?", que é onde a
+    // fala certa pra um zero mora.
+    bubbles.push(
+      line(LINES.planEmergencyEta, seed, {
+        nome,
+        valor: formatCents(plan.reservaCents),
+        tempo: humanizeMonths(emergency.monthsToFund),
+      }),
+    );
+  }
+
+  return bubbles;
+}
+
+/** Uma posição da fila: #rank, quanto recebe este mês, e por que está aí. */
+function priorityFacts(allocation: GoalAllocation): string {
+  return [
+    `#${allocation.rank} ${allocation.emoji} ${allocation.label}`,
+    `${formatCents(allocation.suggestedCents)} este mês`,
+    summarizeReason(allocation.rankReason),
+  ].join('\n');
+}
+
+/**
+ * "Qual meta vem primeiro?" — a fila do motor, na ordem do motor.
+ *
+ * A ordem NÃO é recalculada aqui e o motivo de cada posição também não: os dois
+ * vêm de `rankGoals`. Reordenar ou reescrever o porquê na tela faria o app ter
+ * duas opiniões sobre a mesma fila, e a pessoa acreditaria na errada.
+ */
+function answerPriority(answer: Answer, seed: number): string[] {
+  const nome = nameOf(answer);
+  const { plan } = answer;
+
+  // Sem meta cadastrada não existe fila. Vem antes do guarda de renda porque
+  // "cria a primeira meta" é um passo que independe de saber quanto entra.
+  if (answer.data.goals.length === 0) return [line(LINES.noGoals, seed, { nome })];
+
+  const blocked = incomeGuard(answer, seed);
+  if (blocked) return blocked;
+
+  // `allocations` vem VAZIA quando o plano não é viável — o motor não distribui
+  // o que não existe. Sem este corte, quem tem metas e está no vermelho ouviria
+  // "zero metas cadastradas", que é falso.
+  if (!plan.viable) return planImpossibleAnswer(answer, seed);
+
+  const queue = plan.allocations;
+
+  // Metas cadastradas, plano de pé e fila vazia = todas já fechadas: o motor só
+  // enfileira quem ainda tem o que receber. Vitória é limpa, então aqui não
+  // entra piada nem banco de fala — é a única saída honesta que sobra.
+  if (queue.length === 0) {
+    return [
+      'Suas metas estão todas fechadas — não sobrou nenhuma pra entrar na fila. Quando aparecer a próxima, cria nos objetivos que eu volto a ordenar.',
+    ];
+  }
+
+  const bubbles = queue.slice(0, MAX_GOALS_IN_ANSWER).map((allocation) => {
+    const facts = priorityFacts(allocation);
+    if (allocation.suggestedCents > 0) return facts;
+
+    // R$ 0,00 é o único número da fila que precisa de fala junto: sozinho ele
+    // parece castigo, e não é — a sobra acabou antes de chegar nela. O id entra
+    // na seed senão duas metas zeradas recebem a MESMA frase, uma embaixo da
+    // outra, e a personagem desmonta na hora.
+    const comment = line(LINES.planGoalStarved, hashSeed(seed, allocation.goalId), {
+      nome,
+      meta: allocation.label,
+    });
+    return `${facts}\n\n${comment}`;
+  });
+
+  const rest = queue.length - MAX_GOALS_IN_ANSWER;
+  if (rest > 0) {
+    bubbles.push(
+      `Tem mais ${pluralize(rest, 'meta', 'metas')} na fila, todas depois dessas. Abre os objetivos pra ver a ordem inteira.`,
+    );
+  }
+
+  return bubbles;
+}
+
+/**
  * "Me dá uma dica" — o insight de maior peso, do mesmo motor que alimenta a
  * Início. A fala já vem escolhida e preenchida por `insights.ts`; repescar
  * aqui faria a mesma dica ter duas versões diferentes no mesmo app.
@@ -620,9 +802,11 @@ function answerAboutHer(answer: Answer, seed: number): string[] {
 
 type QuestionId =
   | 'mes'
+  | 'plano'
   | 'onde'
   | 'comprar'
   | 'metas'
+  | 'prioridade'
   | 'assinaturas'
   | 'guardar'
   | 'dica'
@@ -630,12 +814,20 @@ type QuestionId =
 
 type Question = { id: QuestionId; label: string };
 
-/** A ordem é a da utilidade: as perguntas que resolvem o mês vêm primeiro. */
+/**
+ * A ordem é a da utilidade: as perguntas que resolvem o mês vêm primeiro. Os
+ * chips rolam na horizontal, então posição é visibilidade — "como eu divido" é
+ * a pergunta que o app existe pra responder e não pode nascer fora da tela.
+ * As duas de meta andam juntas: quem pergunta se elas dão certo pergunta em
+ * seguida qual vem primeiro.
+ */
 const QUESTIONS: readonly Question[] = [
   { id: 'mes', label: 'Como eu tô esse mês?' },
+  { id: 'plano', label: 'Como eu divido meu dinheiro?' },
   { id: 'onde', label: 'Onde meu dinheiro tá indo?' },
   { id: 'comprar', label: 'Dá pra eu comprar X?' },
   { id: 'metas', label: 'Minhas metas vão dar certo?' },
+  { id: 'prioridade', label: 'Qual meta vem primeiro?' },
   { id: 'assinaturas', label: 'Minhas assinaturas tá caro?' },
   { id: 'guardar', label: 'Quanto eu consigo guardar?' },
   { id: 'dica', label: 'Me dá uma dica' },
@@ -654,10 +846,14 @@ function answerFor(id: Exclude<QuestionId, 'comprar'>, answer: Answer, seed: num
   switch (id) {
     case 'mes':
       return answerMonth(answer, seed);
+    case 'plano':
+      return answerPlan(answer, seed);
     case 'onde':
       return answerWhere(answer, seed);
     case 'metas':
       return answerGoals(answer, seed);
+    case 'prioridade':
+      return answerPriority(answer, seed);
     case 'assinaturas':
       return answerSubscriptions(answer, seed);
     case 'guardar':
@@ -745,6 +941,7 @@ export default function ConversaScreen() {
   const data = useFinancialData();
   const snapshot = useSnapshot();
   const projections = useProjections();
+  const plan = usePlan();
   const top = useTopInsight();
   const profile = useArrego((state) => state.profile);
   const month = useArrego((state) => state.month);
@@ -824,21 +1021,21 @@ export default function ConversaScreen() {
         return;
       }
 
-      const answer: Answer = { data, snapshot, projections, top, profile, month };
+      const answer: Answer = { data, snapshot, projections, plan, top, profile, month };
       ask(id, question.label, (seed) => answerFor(id, answer, seed));
     },
-    [ask, data, snapshot, projections, top, profile, month],
+    [ask, data, snapshot, projections, plan, top, profile, month],
   );
 
   const handleBuy = useCallback(() => {
     const price = priceCents;
     setSheetOpen(false);
 
-    const answer: Answer = { data, snapshot, projections, top, profile, month };
+    const answer: Answer = { data, snapshot, projections, plan, top, profile, month };
     ask('comprar', `Dá pra eu comprar uma coisa de ${formatCents(price)}?`, (seed) =>
       answerBuy(answer, price, seed),
     );
-  }, [ask, priceCents, data, snapshot, projections, top, profile, month]);
+  }, [ask, priceCents, data, snapshot, projections, plan, top, profile, month]);
 
   return (
     <Screen
@@ -854,14 +1051,18 @@ export default function ConversaScreen() {
             contentContainerStyle={styles.chipsContent}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Enquanto ela "digita", os chips saem do ar: sem isso dá pra
-                empilhar três perguntas e as respostas chegam embaralhadas. */}
+            {/* Enquanto ela "digita", os chips ficam inativos: sem isso dá pra
+                empilhar três perguntas e as respostas chegam embaralhadas.
+                `disabled` em vez de anular `onPress` — um Chip sem onPress vira
+                View decorativa e some do leitor de tela, e aí a lista inteira de
+                perguntas pisca fora de existência a cada resposta. */}
             <View style={[styles.chipsRow, typing && styles.chipsBusy]}>
               {QUESTIONS.map((question) => (
                 <Chip
                   key={question.id}
                   label={question.label}
-                  onPress={typing ? undefined : () => handleQuestion(question)}
+                  disabled={typing}
+                  onPress={() => handleQuestion(question)}
                 />
               ))}
             </View>

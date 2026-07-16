@@ -43,6 +43,7 @@ import {
 } from '@/db/repositories';
 import { buildSnapshot, projectAllGoals, type FinancialData } from '@/engine/analysis';
 import { generateInsights, topInsight } from '@/engine/insights';
+import { buildMonthlyPlan, type MonthlyPlan } from '@/engine/plan';
 import type {
   Card,
   CardPurchase,
@@ -588,6 +589,14 @@ const topInsightOf = memoize((insights: Insight[]): Insight | null => topInsight
 
 const selectTopInsight = (state: ArregoState): Insight | null => topInsightOf(selectInsights(state));
 
+const planOf = memoize(
+  (data: FinancialData, snapshot: MonthlySnapshot, month: MonthKey): MonthlyPlan =>
+    buildMonthlyPlan(data, snapshot, month),
+);
+
+const selectPlan = (state: ArregoState): MonthlyPlan =>
+  planOf(selectFinancialData(state), selectSnapshot(state), state.month);
+
 export function useFinancialData(): FinancialData {
   return useArrego(selectFinancialData);
 }
@@ -606,4 +615,9 @@ export function useProjections(): GoalProjection[] {
 
 export function useTopInsight(): Insight | null {
   return useArrego(selectTopInsight);
+}
+
+/** O plano do mês: quanto vai pra reserva, pros objetivos e pro lazer. */
+export function usePlan(): MonthlyPlan {
+  return useArrego(selectPlan);
 }
