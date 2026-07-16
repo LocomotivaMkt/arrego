@@ -731,7 +731,7 @@ export default function ObjetivosScreen() {
               <AppText variant="body">
                 {fill(pickLine(LINES.noEmergencyFund, hashSeed(month, 'objetivos:noEmergencyFund')), {
                   nome,
-                  valor: formatCents(suggestedEmergency),
+                  valor: formatCents(suggestedEmergency.targetCents),
                 })}
               </AppText>
 
