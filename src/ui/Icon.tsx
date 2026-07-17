@@ -1,93 +1,119 @@
-import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 import { useTheme } from '@/theme/useTheme';
 import type { ThemeColors } from '@/theme/tokens';
 
-type FeatherName = ComponentProps<typeof Feather>['name'];
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 /**
- * Ícones de linha, monocromáticos, tamanho único de traço.
+ * Ícones de linha, uma família só, traço e grade únicos.
  *
- * Por que não emoji: emoji é ilustração colorida que cada sistema desenha do
+ * POR QUE NÃO EMOJI: emoji é ilustração colorida que cada sistema desenha do
  * seu jeito, ignora a cor do tema e não tem peso visual consistente. Uma tela
  * cheia deles lê como conversa de aplicativo de mensagem, não como app de
- * dinheiro — e foi metade da razão de a primeira versão parecer amadora.
+ * dinheiro. Não sobrou nenhum na interface: nem no seletor de meta, nem no
+ * avatar, nem na cara da Arrego.
  *
- * Emoji continua existindo em UM lugar: onde a PESSOA escolheu (o ícone da meta
- * dela, o avatar). Aí ele é conteúdo, não decoração de interface.
+ * POR QUE IONICONS E NÃO FEATHER: o Feather é mais bonito e não tem carro,
+ * nem pet, nem avião, nem escola. Um app de metas sem ícone de carro obriga a
+ * "emprestar" um glifo torto ou a importar um segundo pacote, e dois pacotes
+ * significam dois traços e duas grades na mesma tela. Uma família completa e
+ * correta ganha de uma família bonita e incompleta.
  *
- * O catálogo abaixo é fechado de propósito. Tela não escolhe nome de ícone da
- * biblioteca inteira — escolhe um papel daqui. É o que impede o app de ter três
- * ícones diferentes para "dinheiro".
+ * O CATÁLOGO É FECHADO de propósito. Tela não escolhe nome da biblioteca
+ * inteira (são 1357): escolhe um PAPEL daqui. É o que impede o app de ter três
+ * ícones diferentes para "dinheiro" e, quando esta família for trocada de novo,
+ * é o que faz a troca custar um arquivo em vez de sessenta.
  */
 export const ICONS = {
   // Navegação
-  home: 'home',
-  money: 'dollar-sign',
-  card: 'credit-card',
-  target: 'target',
-  learn: 'book-open',
-  profile: 'user',
-  chat: 'message-circle',
-  plan: 'pie-chart',
+  home: 'home-outline',
+  money: 'wallet-outline',
+  card: 'card-outline',
+  target: 'flag-outline',
+  learn: 'book-outline',
+  profile: 'person-outline',
+  chat: 'chatbubble-ellipses-outline',
+  plan: 'pie-chart-outline',
 
   // Ações
-  add: 'plus',
-  close: 'x',
-  back: 'chevron-left',
-  next: 'chevron-right',
+  add: 'add',
+  close: 'close',
+  back: 'chevron-back',
+  next: 'chevron-forward',
   up: 'chevron-up',
   down: 'chevron-down',
-  edit: 'edit-2',
-  trash: 'trash-2',
-  camera: 'camera',
-  check: 'check',
-  refresh: 'refresh-cw',
+  edit: 'create-outline',
+  trash: 'trash-outline',
+  camera: 'camera-outline',
+  check: 'checkmark',
+  refresh: 'refresh',
+  minus: 'remove',
 
   // Estado / significado
-  shield: 'shield',
-  alert: 'alert-triangle',
-  info: 'info',
-  ok: 'check-circle',
-  danger: 'alert-octagon',
+  shield: 'shield-outline',
+  shieldOk: 'shield-checkmark-outline',
+  alert: 'warning-outline',
+  info: 'information-circle-outline',
+  ok: 'checkmark-circle-outline',
+  danger: 'alert-circle-outline',
   trendUp: 'trending-up',
   trendDown: 'trending-down',
-  calendar: 'calendar',
-  lock: 'lock',
-  eye: 'eye',
-  eyeOff: 'eye-off',
+  calendar: 'calendar-outline',
+  lock: 'lock-closed-outline',
+  eye: 'eye-outline',
+  eyeOff: 'eye-off-outline',
+  cash: 'cash-outline',
+
+  // Categorias de gasto e de entrada
+  work: 'briefcase-outline',
+  tool: 'construct-outline',
+  gift: 'gift-outline',
+  bill: 'flash-outline',
+  market: 'cart-outline',
+  transport: 'bus-outline',
+  health: 'medkit-outline',
+  leisure: 'film-outline',
+  box: 'cube-outline',
+  tv: 'tv-outline',
+  music: 'headset-outline',
+  games: 'game-controller-outline',
+  gym: 'barbell-outline',
+  phone: 'phone-portrait-outline',
+  food: 'fast-food-outline',
+  coffee: 'cafe-outline',
 
   /**
-   * Categorias — o papel de uma linha de lista (uma entrada, uma conta, uma
-   * assinatura). Aqui o ícone é o RITMO da lista, não a identidade dela: quem
-   * diz "Moradia" é o rótulo, então duas categorias vizinhas podem dividir o
-   * mesmo glifo sem prejuízo nenhum.
+   * Ícones de META — os que a PESSOA escolhe.
    *
-   * O Feather não tem carteira nem controle de videogame. Importar um segundo
-   * pacote de ícones por causa disso traria outro traço e outra grade para a
-   * mesma tela — sai muito mais caro que emprestar o glifo mais próximo.
+   * Estes eram emoji e são o motivo real da troca de família: um seletor de
+   * meta sem carro nem pet não serve. `Goal.emoji` guarda a chave daqui; o
+   * nome da coluna ficou por herança, e trocá-lo custaria uma migração para
+   * não mudar nada de comportamento.
    */
-  work: 'briefcase',
-  tool: 'tool',
-  gift: 'gift',
-  bill: 'zap',
-  market: 'shopping-cart',
-  transport: 'navigation',
-  health: 'heart',
-  leisure: 'film',
-  box: 'package',
-  tv: 'tv',
-  music: 'headphones',
-  games: 'monitor',
-  gym: 'activity',
-  phone: 'smartphone',
+  goalCar: 'car-outline',
+  goalHome: 'home',
+  goalStudy: 'school-outline',
+  goalTrip: 'airplane-outline',
+  goalLaptop: 'laptop-outline',
+  goalPhone: 'phone-portrait-outline',
+  goalMusic: 'musical-notes-outline',
+  goalPet: 'paw-outline',
+  goalWedding: 'diamond-outline',
+  goalShield: 'shield-outline',
+  goalTarget: 'flag-outline',
 } as const;
 
 export type IconName = keyof typeof ICONS;
 
+/** Serve para decidir se um valor guardado no banco é ícone ou emoji antigo. */
+export function isIconName(value: string): value is IconName {
+  return Object.prototype.hasOwnProperty.call(ICONS, value);
+}
+
 export type IconProps = {
   name: IconName;
-  /** Tamanho em px. Padrão 20 — o do corpo de texto. */
+  /** Tamanho em px. Padrão 20, o do corpo de texto. */
   size?: number;
   /**
    * Papel de tinta. Ícone segue as MESMAS tintas do texto: ele é um glifo, não
@@ -116,12 +142,12 @@ function toneColor(colors: ThemeColors, tone: NonNullable<IconProps['tone']>): s
 export function Icon({ name, size = 20, tone = 'secondary', color }: IconProps) {
   const { colors } = useTheme();
   return (
-    <Feather
-      name={ICONS[name] as FeatherName}
+    <Ionicons
+      name={ICONS[name] as IoniconName}
       size={size}
       color={color ?? toneColor(colors, tone)}
       // O ícone é decorativo: quem carrega o significado é o rótulo ao lado.
-      // Sem isto, o leitor de tela anuncia "dollar-sign" antes de cada valor.
+      // Sem isto, o leitor de tela anuncia "wallet-outline" antes de cada valor.
       accessibilityElementsHidden
       importantForAccessibility="no"
     />

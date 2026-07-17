@@ -359,7 +359,7 @@ export function buildMonthlyPlan(
     );
   } else if (!emergencyFunded) {
     notes.push(
-      'Enquanto a reserva não fecha, ela leva a maior parte do que você guarda — mas não tudo, pra suas outras metas não ficarem paradas.',
+      'Enquanto a reserva não fecha, ela leva a maior parte do que você guarda. Não tudo: suas outras metas também precisam andar.',
     );
   }
   if (unfunded.length > 0) {

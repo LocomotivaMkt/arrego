@@ -72,8 +72,10 @@ import {
   SegmentedControl,
   Sheet,
   TextField,
+  type IconName,
   type MeterTone,
 } from '@/ui';
+import { GoalIcon } from '@/ui/GoalIcon';
 import {
   addMonths,
   clampDayToMonth,
@@ -89,19 +91,24 @@ import { formatCents } from '@/utils/money';
 
 /* ─────────────────────────────── Constantes ─────────────────────────────── */
 
+/**
+ * O que a pessoa escolhe como ícone da meta. Cada item é uma CHAVE do catálogo
+ * de ícones (ver src/ui/Icon.tsx), não mais um emoji: `Goal.emoji` guarda essa
+ * chave e toda tela que mostra a meta a desenha com `GoalIcon`.
+ */
 const GOAL_ICONS = [
-  { emoji: '🚗', name: 'Carro' },
-  { emoji: '🏠', name: 'Casa' },
-  { emoji: '🎓', name: 'Estudos' },
-  { emoji: '✈️', name: 'Viagem' },
-  { emoji: '💻', name: 'Computador' },
-  { emoji: '📱', name: 'Celular' },
-  { emoji: '🎸', name: 'Instrumento' },
-  { emoji: '🐶', name: 'Pet' },
-  { emoji: '💍', name: 'Casamento' },
-  { emoji: '🛡️', name: 'Reserva' },
-  { emoji: '🎯', name: 'Objetivo' },
-] as const;
+  { key: 'goalCar', name: 'Carro' },
+  { key: 'goalHome', name: 'Casa' },
+  { key: 'goalStudy', name: 'Estudos' },
+  { key: 'goalTrip', name: 'Viagem' },
+  { key: 'goalLaptop', name: 'Computador' },
+  { key: 'goalPhone', name: 'Celular' },
+  { key: 'goalMusic', name: 'Instrumento' },
+  { key: 'goalPet', name: 'Pet' },
+  { key: 'goalWedding', name: 'Casamento' },
+  { key: 'goalShield', name: 'Reserva' },
+  { key: 'goalTarget', name: 'Objetivo' },
+] as const satisfies readonly { key: IconName; name: string }[];
 
 /** Menor = mais importante. A reserva de emergência é a única com 0. */
 const PRIORITIES = [
@@ -194,7 +201,7 @@ function paceLine(projection: GoalProjection): string {
   // Dentro do orçamento (<= 90 chars): a saída prática é o botão "Guardar
   // dinheiro" na superfície do card, não o fim da frase.
   if (projection.monthlyPaceCents < 0) {
-    return 'Saiu mais daqui do que entrou. Acontece — o próximo depósito reverte.';
+    return 'Saiu mais daqui do que entrou. Acontece, o próximo depósito reverte.';
   }
   return 'Você ainda não guardou nada pra essa. Qualquer valor já tira o zero.';
 }
@@ -221,7 +228,7 @@ function describeGoal(goal: Goal, projection: GoalProjection): GoalStatus {
   if (projection.onTrack === true) {
     return {
       severity: 'good',
-      badge: 'No ritmo',
+      badge: 'No prazo',
       meter: 'good',
       lines: [capitalize(missingTime(projection.monthsAtCurrentPace ?? 0)) + '.'],
       caption: deadline !== null ? `Prazo: ${deadline}` : null,
@@ -266,7 +273,7 @@ function describeGoal(goal: Goal, projection: GoalProjection): GoalStatus {
     badge: 'Sem prazo',
     meter: 'brand',
     lines: [paceLine(projection)],
-    caption: 'Sem prazo — essa chega quando você quiser.',
+    caption: 'Sem prazo. Essa chega quando você quiser.',
   };
 }
 
@@ -412,7 +419,7 @@ function GoalCard({
       <Card tone={brand ? 'brand' : 'surface'}>
         <View style={styles.cardStack}>
           <View style={styles.cardHead}>
-            <AppText style={styles.cardEmoji}>{goal.emoji}</AppText>
+            <GoalIcon value={goal.emoji} size={28} />
             <AppText variant="subheading" numberOfLines={2} style={styles.cardLabel}>
               {goal.label}
             </AppText>
@@ -457,7 +464,7 @@ function GoalCard({
       <View style={styles.cardStack}>
         {/* Linha 1 — de quem é a meta, e que lugar ela ocupa na fila. */}
         <View style={styles.cardHead}>
-          <AppText style={styles.cardEmoji}>{goal.emoji}</AppText>
+          <GoalIcon value={goal.emoji} size={28} />
           <AppText variant="subheading" numberOfLines={2} style={styles.cardLabel}>
             {goal.label}
           </AppText>
@@ -555,50 +562,37 @@ function GoalCard({
 
 /* ─────────────────────────────── Ícone da meta ──────────────────────────── */
 
-function IconPicker({ value, onChange }: { value: string; onChange: (emoji: string) => void }) {
+function IconPicker({ value, onChange }: { value: string; onChange: (key: string) => void }) {
   const { colors } = useTheme();
 
   return (
     <Field label="Ícone">
       <View style={styles.iconGrid} accessibilityRole="radiogroup">
         {GOAL_ICONS.map((icon) => {
-          const selected = icon.emoji === value;
+          const selected = icon.key === value;
           return (
             <Pressable
-              key={icon.emoji}
-              onPress={() => onChange(icon.emoji)}
+              key={icon.key}
+              onPress={() => onChange(icon.key)}
               accessible
               accessibilityRole="radio"
               accessibilityState={{ selected }}
               accessibilityLabel={icon.name}
+              // O escolhido é um aro de TINTA, nunca amarelo: o amarelo desta
+              // tela é da vitória ou do botão "Nova meta", e uma grade inteira de
+              // células amarelas não apontaria pra escolha nenhuma. A borda é
+              // interna no RN, então engrossá-la não muda o tamanho da célula.
               style={({ pressed }) => [
                 styles.iconCell,
                 {
-                  backgroundColor: selected ? colors.brand.amber : colors.surfaceSunken,
-                  borderColor: selected ? colors.brand.amberDeep : colors.border,
+                  backgroundColor: colors.surfaceSunken,
+                  borderColor: selected ? colors.ink.primary : colors.border,
+                  borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
                 },
                 pressed && styles.pressed,
               ]}
             >
-              {/*
-                Este é o único emoji que a interface desenha por vontade própria,
-                e ele passa porque é a ESCOLHA da pessoa virando o ícone da meta
-                dela — conteúdo, não enfeite.
-
-                A célula selecionada é amarela, então a tinta tem de ser onBrand.
-                Hoje todos os GOAL_ICONS são emoji (glifo colorido ignora `color`)
-                e nada aparece — mas o primeiro ícone de texto que entrar aqui
-                acende branco sobre amarelo no tema escuro. Mesma armadilha que
-                Chip.tsx e Button.tsx já fecharam.
-              */}
-              <AppText
-                style={[
-                  styles.iconEmoji,
-                  { color: selected ? colors.ink.onBrand : colors.ink.primary },
-                ]}
-              >
-                {icon.emoji}
-              </AppText>
+              <Icon name={icon.key} size={24} tone={selected ? 'primary' : 'secondary'} />
             </Pressable>
           );
         })}
@@ -618,7 +612,7 @@ type GoalForm = {
 };
 
 const EMPTY_FORM: GoalForm = {
-  emoji: '🎯',
+  emoji: 'goalTarget',
   label: '',
   targetCents: 0,
   targetMonth: null,
@@ -850,7 +844,7 @@ export default function ObjetivosScreen() {
     void addGoal({
       label: 'Reserva de emergência',
       kind: 'emergency',
-      emoji: '🛡️',
+      emoji: 'goalShield',
       targetCents: emergencyValue,
       // Reserva não tem prazo: ela é a meta que não pode virar cobrança mensal.
       targetDate: null,
@@ -920,7 +914,7 @@ export default function ObjetivosScreen() {
   const confirmRemoveDeposit = (deposit: GoalDeposit) => {
     Alert.alert(
       'Apagar esse lançamento?',
-      `${formatCents(deposit.amountCents)} em ${formatDayMonth(deposit.depositedOn)}. O total da meta muda junto — apaga só se estiver errado mesmo.`,
+      `${formatCents(deposit.amountCents)} em ${formatDayMonth(deposit.depositedOn)}. O total da meta muda junto. Apaga só se estiver errado mesmo.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -978,7 +972,7 @@ export default function ObjetivosScreen() {
     Alert.alert(
       `${goal.label} é a sua #${allocation.rank}`,
       allocation.suggestedCents === 0
-        ? `${allocation.rankReason}\n\nEste mês ela fica com R$ 0,00: quem está na frente levou a sobra inteira. Ela anda assim que a fila andar — ou você sobe a prioridade dela em "Editar".`
+        ? `${allocation.rankReason}\n\nEste mês ela fica com R$ 0,00: quem está na frente levou a sobra inteira. Ela anda assim que a fila andar, ou você sobe a prioridade dela em "Editar".`
         : `${allocation.rankReason}\n\nGuardar este mês: ${formatCents(allocation.suggestedCents)}.`,
       [
         { text: 'Ver o plano completo', onPress: abrirPlano },
@@ -1274,7 +1268,7 @@ export default function ObjetivosScreen() {
           // absolvição fica mais crível, aliás: quem se explica demais parece
           // estar pedindo desculpa pelo próprio botão.
           <AppText variant="small" tone="secondary">
-            Tirou, tirou. Guardar não é prisão — registrar só mantém o número honesto.
+            Tirou, tirou. Guardar não é prisão, registrar só mantém o número honesto.
           </AppText>
         ) : null}
 
@@ -1338,7 +1332,6 @@ const styles = StyleSheet.create({
   stack: { gap: spacing.lg },
   cardStack: { gap: spacing.md },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  cardEmoji: { fontSize: 28, lineHeight: 34 },
   cardLabel: { flex: 1 },
   rankBadge: {
     // `minWidth` e não `width`: círculo em "#1", pílula em "#10".
@@ -1385,6 +1378,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  iconEmoji: { fontSize: 22, lineHeight: 26 },
   pressed: { opacity: 0.65 },
 });

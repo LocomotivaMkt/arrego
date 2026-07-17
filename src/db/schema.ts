@@ -17,7 +17,10 @@ export const MIGRATIONS: readonly string[] = [
     id           INTEGER PRIMARY KEY CHECK (id = 1),
     name         TEXT    NOT NULL,
     photo_uri    TEXT,
-    avatar_emoji TEXT    NOT NULL DEFAULT '🙂',
+    -- Coluna morta: o avatar virou iniciais do nome e a UI ignora este campo.
+    -- Sobrevive porque removê-la exigiria migração para não mudar nada. Default
+    -- vazio para não deixar o único emoji do banco vazar se alguém religar a prop.
+    avatar_emoji TEXT    NOT NULL DEFAULT '',
     payday       INTEGER CHECK (payday IS NULL OR (payday BETWEEN 1 AND 31)),
     created_at   TEXT    NOT NULL,
     onboarded_at TEXT
@@ -95,7 +98,9 @@ export const MIGRATIONS: readonly string[] = [
     id           TEXT    PRIMARY KEY,
     label        TEXT    NOT NULL,
     kind         TEXT    NOT NULL CHECK (kind IN ('emergency', 'custom')),
-    emoji        TEXT    NOT NULL DEFAULT '🎯',
+    -- Guarda a CHAVE de um ícone do catálogo (ver src/ui/Icon.tsx), não mais um
+    -- emoji. O nome da coluna ficou por herança; trocá-lo exigiria migração.
+    emoji        TEXT    NOT NULL DEFAULT 'goalTarget',
     target_cents INTEGER NOT NULL CHECK (target_cents > 0),
     target_date  TEXT,
     priority     INTEGER NOT NULL DEFAULT 100,

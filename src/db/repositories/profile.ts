@@ -12,7 +12,18 @@ type ProfileRow = {
   onboarded_at: string | null;
 };
 
-const DEFAULT_EMOJI = '🙂';
+/**
+ * Vazio, e não uma carinha: o avatar virou INICIAIS (ver `ui/Avatar.tsx`) e a UI
+ * não lê mais este campo. Um default com emoji gravaria hoje um dado que nasce
+ * morto.
+ *
+ * Por que a coluna sobreviveu: SQLite não dropa coluna sem recriar a tabela, ou
+ * seja, apagar `avatar_emoji` custaria uma migração — e uma migração que copia a
+ * tabela inteira, com o risco que isso tem, para não mudar comportamento nenhum.
+ * O campo simplesmente parou de ser usado. Quem já tem uma carinha gravada
+ * continua com ela no banco; ela só não aparece em lugar nenhum.
+ */
+const DEFAULT_EMOJI = '';
 
 export type ProfileInput = {
   name: string;

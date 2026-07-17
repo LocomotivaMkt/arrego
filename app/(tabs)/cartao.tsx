@@ -279,7 +279,7 @@ export default function CartaoScreen() {
             />
             <Reveal label="Por quê?">
               <AppText variant="small" tone="secondary">
-                Aqui um cartão é apelido, dia de fechamento e dia de vencimento — é só isso que me
+                Aqui um cartão é apelido, dia de fechamento e dia de vencimento. É só isso que me
                 diz em que mês a parcela cai. Número, CVV, validade, nome do titular e senha não são
                 pedidos e não são guardados: não existe campo pra isso.
               </AppText>
@@ -389,7 +389,7 @@ export default function CartaoScreen() {
                       />
                       <Reveal label="O que entra nessa conta?">
                         <AppText variant="small" tone="secondary">
-                          Isto é só o que as parcelas DESTE mês ocupam do limite — não é o seu limite
+                          Isto é só o que as parcelas DESTE mês ocupam do limite, não é o seu limite
                           disponível de verdade. Eu não falo com o seu banco: compra à vista,
                           anuidade e tudo que você ainda não cadastrou aqui não entram nesta conta.
                           Quem sabe o número real é o app do banco.

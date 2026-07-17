@@ -26,6 +26,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 
 import { expenseBreakdown } from '@/engine/analysis';
 import { firstName, hashSeed, shortLine } from '@/engine/persona';
+import { reviewReady } from '@/engine/retrospect';
 import {
   useArrego,
   useFinancialData,
@@ -57,12 +58,15 @@ import {
   type ButtonVariant,
   type IconName,
 } from '@/ui';
+import { GoalIcon } from '@/ui/GoalIcon';
 
 const ROTA_PERFIL = '/perfil';
-const ROTA_CONVERSA = '/conversa';
+const ROTA_CONVERSA = '/(tabs)/conversa';
 const ROTA_GRANA = '/(tabs)/grana';
 const ROTA_OBJETIVOS = '/(tabs)/objetivos';
+const ROTA_APRENDER = '/(tabs)/aprender';
 const ROTA_PLANO = '/plano';
+const ROTA_RETRO = '/retrospectiva';
 
 /** Quantas metas cabem no Início antes de a tela virar lista de metas. */
 const METAS_NO_INICIO = 3;
@@ -167,7 +171,7 @@ function LinhaDaMeta({
       style={({ pressed }) => [styles.metaRow, pressed && styles.pressed]}
     >
       <View style={styles.metaLeading}>
-        <AppText style={styles.metaEmoji}>{goal.emoji}</AppText>
+        <GoalIcon value={goal.emoji} size={22} />
       </View>
 
       <View style={styles.metaBody}>
@@ -469,6 +473,34 @@ export default function Inicio() {
         </Card>
 
         {/*
+          A retrospectiva só aparece quando o mês fechou (últimos dias em diante).
+          Antes disso ela daria veredito sobre um mês que ainda está acontecendo,
+          então some. A seta é do próprio ListRow.
+        */}
+        {reviewReady(month) ? (
+          <ListRow
+            leading={<Icon name="calendar" />}
+            title="Como foi seu mês"
+            onPress={() => abrir(ROTA_RETRO)}
+            accessibilityLabel="Como foi seu mês. Toque para ver a retrospectiva."
+          />
+        ) : null}
+
+        {/*
+          Atalho para anotar um gasto na hora (o pão na padaria do enunciado).
+          Leva direto à aba "Saiu" da Grana via `?aba=saiu`, cortando os dois
+          toques de navegação que faziam "anotar um gasto" custar cinco toques
+          da abertura fria. É o caminho que a pessoa mais repete no app.
+        */}
+        <ListRow
+          leading={<Icon name="minus" />}
+          title="Anotar um gasto"
+          subtitle="Um lanche, o pão, a corrida de app"
+          onPress={() => abrir(`${ROTA_GRANA}?aba=saiu`)}
+          accessibilityLabel="Anotar um gasto agora. Abre a aba Saiu."
+        />
+
+        {/*
           A antiga KPI row. Estes três números são a aritmética do herói, não o
           assunto da tela — abertos por padrão, eles competiam com o número que a
           pessoa abriu o app pra ver. Nada some: fica a um toque.
@@ -487,7 +519,7 @@ export default function Inicio() {
           */}
           <ListRow
             leading={<Icon name="lock" />}
-            title="Comprometido"
+            title="Contas do mês"
             subtitle={
               rendaCents > 0
                 ? `${formatPercent(ratio(snapshot.committedCents, rendaCents))} da renda`
@@ -647,6 +679,17 @@ export default function Inicio() {
             </Reveal>
           </View>
         ) : null}
+
+        {/*
+          Aprender saiu da barra de abas, mas não fica órfão: esta linha é uma
+          das duas portas pra ele (a outra é a conta). Discreta de propósito —
+          é material de referência, não o assunto da tela.
+        */}
+        <ListRow
+          leading={<Icon name="learn" />}
+          title="Aprender sobre dinheiro"
+          onPress={() => abrir(ROTA_APRENDER)}
+        />
       </ScrollView>
     </Screen>
   );
@@ -696,7 +739,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   metaLeading: { width: LEADING_SIZE, alignItems: 'center', justifyContent: 'center' },
-  metaEmoji: { fontSize: 22, lineHeight: 28 },
   metaBody: { flex: 1, gap: spacing.xs },
 
   vazio: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },

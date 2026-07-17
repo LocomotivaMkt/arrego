@@ -24,9 +24,9 @@ import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Linking, StyleSheet, View } from 'react-native';
 import { useArrego } from '@/store/useArrego';
-import { radius, spacing } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import {
   AppText,
@@ -42,19 +42,11 @@ import {
   TextField,
 } from '@/ui';
 
-/** A cara é escolha da pessoa: emoji aqui é conteúdo, não enfeite de interface. */
-const AVATAR_EMOJIS = [
-  '🙂', '😎', '🤨', '🫠', '🥲', '🤑', '🧠', '🔥',
-  '🐢', '🦆', '🐈', '🦖', '🌵', '🍀', '🍕', '🧃',
-  '🎧', '🎮', '🎸', '📚', '⚽', '🏀', '🚀', '🌊',
-  '👑', '💀', '🫶', '🪐',
-];
-
 /**
  * A galeria pode ser negada de dois jeitos diferentes e cada um tem uma saída
  * diferente: dá pra perguntar de novo, ou só os ajustes do aparelho resolvem.
- * Nos dois casos o emoji continua sendo um caminho inteiro — negar acesso não
- * pode virar beco sem saída.
+ * Nos dois casos as iniciais seguem valendo como avatar, então negar acesso não
+ * vira beco sem saída.
  *
  * Aqui o texto continua explícito de propósito: um Alert é lido, e ele precisa
  * dizer o que aconteceu e qual é a saída. O orçamento de texto corta o que está
@@ -64,7 +56,7 @@ function explainDeniedGallery(canAskAgain: boolean): void {
   if (canAskAgain) {
     Alert.alert(
       'Sem galeria, sem foto',
-      'Pra escolher uma foto eu preciso de acesso à galeria. Pode liberar e tentar de novo, ou ficar no emoji — ele funciona igual e continua sendo você.',
+      'Pra escolher uma foto eu preciso de acesso à galeria. Pode liberar e tentar de novo, ou seguir com suas iniciais. Elas funcionam igual e continuam sendo você.',
       [{ text: 'Entendi' }],
     );
     return;
@@ -72,9 +64,9 @@ function explainDeniedGallery(canAskAgain: boolean): void {
 
   Alert.alert(
     'O acesso está bloqueado',
-    'A galeria está bloqueada pro Arrego, e só dá pra liberar nos ajustes do aparelho. Se você preferir não mexer nisso, tudo bem: o emoji resolve.',
+    'A galeria está bloqueada pro Arrego, e só dá pra liberar nos ajustes do aparelho. Se você preferir não mexer nisso, tudo bem: suas iniciais resolvem.',
     [
-      { text: 'Fico no emoji', style: 'cancel' },
+      { text: 'Fico com as iniciais', style: 'cancel' },
       {
         text: 'Abrir ajustes',
         onPress: () => {
@@ -98,7 +90,6 @@ export default function PerfilScreen() {
   const [draftName, setDraftName] = useState<string | null>(null);
   const [nameOpen, setNameOpen] = useState(false);
   const [paydayOpen, setPaydayOpen] = useState(false);
-  const [emojiOpen, setEmojiOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const name = profile?.name ?? '';
@@ -152,7 +143,7 @@ export default function PerfilScreen() {
     } catch {
       Alert.alert(
         'A galeria não abriu',
-        'Não consegui abrir suas fotos agora. Tenta de novo — e, se ela insistir em não abrir, o emoji resolve.',
+        'Não consegui abrir suas fotos agora. Tenta de novo. Se ela insistir em não abrir, suas iniciais resolvem.',
       );
     } finally {
       setBusy(false);
@@ -165,15 +156,6 @@ export default function PerfilScreen() {
     if (name === '') return;
     await saveProfile({ name, photoUri: null });
   }, [name, saveProfile]);
-
-  const chooseEmoji = useCallback(
-    async (emoji: string) => {
-      setEmojiOpen(false);
-      if (name === '') return;
-      await saveProfile({ name, avatarEmoji: emoji });
-    },
-    [name, saveProfile],
-  );
 
   const savePayday = useCallback(
     async (day: number | null) => {
@@ -252,7 +234,6 @@ export default function PerfilScreen() {
           <Avatar
             name={shownName}
             photoUri={profile.photoUri}
-            emoji={profile.avatarEmoji}
             size={96}
           />
           <AppText variant="heading" numberOfLines={1}>
@@ -267,13 +248,6 @@ export default function PerfilScreen() {
               onPress={() => {
                 void pickPhoto();
               }}
-            />
-            <Button
-              label="Trocar emoji"
-              icon="edit"
-              variant="secondary"
-              disabled={busy}
-              onPress={() => setEmojiOpen(true)}
             />
           </View>
           {profile.photoUri !== null ? (
@@ -318,6 +292,19 @@ export default function PerfilScreen() {
           />
         </Card>
 
+        {/*
+          Aprender saiu da barra de abas; esta é a segunda porta pra ele (a
+          outra é o Início). Fica na conta porque é onde a pessoa procura o que
+          o app tem além das telas do dia a dia.
+        */}
+        <Card>
+          <ListRow
+            title="Aprender sobre dinheiro"
+            leading={<Icon name="learn" />}
+            onPress={() => router.push('/(tabs)/aprender')}
+          />
+        </Card>
+
         <Card>
           <Reveal label="Seus dados">
             <AppText variant="small" tone="secondary">
@@ -328,14 +315,14 @@ export default function PerfilScreen() {
             </AppText>
             <AppText variant="small" tone="secondary">
               Ninguém da Locomotiva vê isso. Nenhum anunciante vê isso. Eu não vendo, não
-              compartilho e não analiso seus dados em lugar nenhum — não por bondade, mas porque
+              compartilho e não analiso seus dados em lugar nenhum, não por bondade, mas porque
               eles nunca saem daí de dentro.
             </AppText>
             <AppText variant="small">
               E agora a parte ruim, que eu não vou esconder de você: como não existe cópia em lugar
               nenhum, também não existe recuperação. Trocou de celular, perdeu. Perdeu o celular,
               perdeu. Desinstalou o app, perdeu. Formatou, perdeu. Não tem "esqueci minha senha" pra
-              clicar e não tem suporte pra chamar — é o preço exato de ninguém além de você ter
+              clicar e não tem suporte pra chamar. É o preço exato de ninguém além de você ter
               esses dados. Prefiro te contar isso hoje do que no dia em que acontecer.
             </AppText>
           </Reveal>
@@ -351,7 +338,7 @@ export default function PerfilScreen() {
         </Card>
 
         <AppText variant="caption" tone="muted" style={styles.centered}>
-          Arrego {version ?? '—'} · roda offline, no seu aparelho
+          {`Arrego${version ? ` ${version}` : ''} · roda offline, no seu aparelho`}
         </AppText>
       </View>
 
@@ -385,45 +372,6 @@ export default function PerfilScreen() {
         />
       </Sheet>
 
-      <Sheet visible={emojiOpen} onClose={() => setEmojiOpen(false)} title="Escolhe sua cara">
-        <View style={styles.emojiGrid} accessibilityRole="radiogroup">
-          {AVATAR_EMOJIS.map((emoji) => {
-            const selected = emoji === profile.avatarEmoji;
-            return (
-              <Pressable
-                key={emoji}
-                onPress={() => {
-                  void chooseEmoji(emoji);
-                }}
-                accessible
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Emoji ${emoji}`}
-                style={({ pressed }) => [
-                  styles.emojiCell,
-                  {
-                    backgroundColor: colors.surfaceSunken,
-                    // O escolhido é um aro de tinta, não uma pastilha amarela:
-                    // é a única seleção da tela e ela não vale um segundo
-                    // amarelo. A borda é interna no RN, então engrossá-la não
-                    // mexe no tamanho da célula.
-                    borderColor: selected ? colors.ink.primary : colors.border,
-                    borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
-                  },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <AppText style={styles.emojiGlyph}>{emoji}</AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-        {profile.photoUri !== null ? (
-          <AppText variant="small" tone="muted">
-            Você está usando uma foto — remove ela pra carinha aparecer.
-          </AppText>
-        ) : null}
-      </Sheet>
     </Screen>
   );
 }
@@ -450,19 +398,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
-  emojiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  emojiCell: {
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.md,
-  },
-  emojiGlyph: { fontSize: 28, lineHeight: 34 },
   pressed: { opacity: 0.65 },
 });

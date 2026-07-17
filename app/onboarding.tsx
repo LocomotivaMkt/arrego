@@ -21,7 +21,6 @@ import {
   AppText,
   Avatar,
   Button,
-  Chip,
   CurrencyField,
   DayField,
   Icon,
@@ -42,23 +41,12 @@ const TOTAL_STEPS = 5;
 type Step = 1 | 2 | 3 | 4 | 5;
 
 /**
- * O emoji vem com nome porque o `Chip` usa o rótulo como `accessibilityLabel`:
- * um chip cujo rótulo é só "🦊" faz o leitor de tela anunciar o nome Unicode do
- * caractere. O nome também é a piada — o emoji sozinho não conta nada.
- *
- * Estes emoji ficam: é a cara que a PESSOA escolhe, ou seja, conteúdo. O emoji
- * proibido é o de enfeite de interface, que virou `<Icon />`.
+ * A grade de oito carinhas saiu daqui. Ela era uma escolha a mais num passo que
+ * já era opcional, e escolher entre um polvo e um ET não diz nada sobre dinheiro
+ * — sem foto, o avatar são as iniciais do nome que a pessoa acabou de digitar no
+ * passo 2 (ver `ui/Avatar.tsx`). Um passo com um botão só é um passo que se
+ * atravessa sem pensar, que é o ponto de um cadastro.
  */
-const EMOJIS: ReadonlyArray<{ glyph: string; name: string }> = [
-  { glyph: '🙂', name: 'De boa' },
-  { glyph: '😎', name: 'Estiloso' },
-  { glyph: '🤑', name: 'Ambicioso' },
-  { glyph: '🐢', name: 'Sem pressa' },
-  { glyph: '🦊', name: 'Esperto' },
-  { glyph: '🐙', name: 'Polvo' },
-  { glyph: '👽', name: 'ET' },
-  { glyph: '🔥', name: 'Fogo' },
-];
 
 export default function Onboarding() {
   const router = useRouter();
@@ -72,7 +60,6 @@ export default function Onboarding() {
   const [name, setName] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoNote, setPhotoNote] = useState<string | null>(null);
-  const [emoji, setEmoji] = useState('🙂');
   const [amountCents, setAmountCents] = useState<Cents>(0);
   const [payday, setPayday] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -92,9 +79,10 @@ export default function Onboarding() {
   }
 
   /**
-   * Negar a galeria não pode virar beco sem saída — a carinha continua sendo um
-   * caminho inteiro. O recado que era de duas frases virou uma: o botão da
-   * carinha está logo abaixo, e ele explica sozinho o que fazer em seguida.
+   * Negar a galeria não pode virar beco sem saída, e desde que a carinha saiu o
+   * caminho de fuga é o próprio passo: foto é opcional, as iniciais já estão
+   * desenhadas na tela e o botão do rodapé continua dizendo "Seguir sem foto".
+   * O recado só precisa contar o que aconteceu.
    */
   async function pickPhoto() {
     try {
@@ -102,8 +90,8 @@ export default function Onboarding() {
       if (!permission.granted) {
         setPhotoNote(
           permission.canAskAgain
-            ? 'Sem acesso à galeria. A carinha aqui embaixo resolve.'
-            : 'Galeria bloqueada nos ajustes. A carinha resolve.',
+            ? 'Sem acesso à galeria. Dá pra seguir sem foto.'
+            : 'Galeria bloqueada nos ajustes. Dá pra seguir sem foto.',
         );
         return;
       }
@@ -122,7 +110,7 @@ export default function Onboarding() {
       setPhotoUri(asset.uri);
       setPhotoNote(null);
     } catch {
-      setPhotoNote('A galeria não abriu. Escolhe uma carinha aqui embaixo.');
+      setPhotoNote('A galeria não abriu. Pode seguir sem foto e tentar depois.');
     }
   }
 
@@ -151,10 +139,12 @@ export default function Onboarding() {
     setSaving(true);
     setAttempted(true);
 
+    // Sem `avatarEmoji`: o campo não existe mais na tela. Omitir preserva o que
+    // estiver no banco (ver `pick` no repositório) em vez de gravar vazio — e num
+    // cadastro novo não há o que preservar.
     await saveProfile({
       name: trimmedName,
       photoUri,
-      avatarEmoji: emoji,
       payday: hasIncome ? payday : null,
     });
     if (useArrego.getState().error !== null) {
@@ -273,7 +263,7 @@ export default function Onboarding() {
                   </AppText>
                   <AppText variant="small" tone="secondary">
                     A conta é honesta nos dois lados: trocou de celular sem exportar, perdeu tudo.
-                    É o preço de ninguém mais ter acesso — inclusive eu.
+                    É o preço de ninguém mais ter acesso, inclusive eu.
                   </AppText>
                 </Reveal>
               </View>
@@ -299,13 +289,13 @@ export default function Onboarding() {
 
           {step === 3 ? (
             <View style={styles.block}>
-              <AppText variant="title">Bota uma cara nisso.</AppText>
+              <AppText variant="title">Quer botar uma foto?</AppText>
               <AppText variant="body" tone="secondary">
                 Opcional. Dá pra trocar depois.
               </AppText>
 
               <View style={styles.avatarRow}>
-                <Avatar name={trimmedName || 'Você'} photoUri={photoUri} emoji={emoji} size={96} />
+                <Avatar name={trimmedName || 'Você'} photoUri={photoUri} size={96} />
               </View>
 
               <View style={styles.buttonRow}>
@@ -334,24 +324,16 @@ export default function Onboarding() {
                 </AppText>
               ) : null}
 
-              <View style={styles.block}>
+              {/*
+                A legenda responde a pergunta que o círculo com duas letras
+                levanta ("por que tem um AS aí?") e some quando a foto responde
+                sozinha. Sem ela, as iniciais parecem um erro de carregamento.
+              */}
+              {photoUri === null ? (
                 <AppText variant="caption" tone="muted">
-                  {photoUri ? 'A carinha volta se você remover a foto' : 'Ou escolhe uma carinha'}
+                  Sem foto, ficam as suas iniciais.
                 </AppText>
-                <View style={styles.chipRow}>
-                  {EMOJIS.map((option) => (
-                    <Chip
-                      key={option.glyph}
-                      label={option.name}
-                      icon={option.glyph}
-                      selected={emoji === option.glyph}
-                      onPress={() => {
-                        setEmoji(option.glyph);
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -397,9 +379,7 @@ export default function Onboarding() {
               <AppText variant="title">Pronto. É isso.</AppText>
 
               <ListRow
-                leading={
-                  <Avatar name={trimmedName || 'Você'} photoUri={photoUri} emoji={emoji} size={40} />
-                }
+                leading={<Avatar name={trimmedName || 'Você'} photoUri={photoUri} size={40} />}
                 title={trimmedName || 'Você'}
                 subtitle={
                   hasIncome ? `${formatCents(amountCents)} todo dia ${payday}` : 'Sem renda fixa'
@@ -441,7 +421,6 @@ const styles = StyleSheet.create({
   block: { gap: spacing.md },
   avatarRow: { alignItems: 'center', paddingVertical: spacing.sm },
   buttonRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   errorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

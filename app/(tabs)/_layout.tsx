@@ -145,14 +145,22 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="aprender"
+        name="conversa"
         options={{
-          title: 'Aprender',
+          title: 'Arrego',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="learn" color={color} focused={focused} />
+            <TabIcon name="chat" color={color} focused={focused} />
           ),
         }}
       />
+      {/*
+        Aprender continua existindo e navegável (/(tabs)/aprender), mas sai da
+        barra: `href: null` esconde o botão sem apagar a rota. Conteúdo de
+        referência, que se lê uma vez, não disputa espaço com uma conversa de
+        uso semanal, e seis abas não respiram numa tela de 375px. A porta pra
+        ele fica no Início e na conta, numa linha discreta.
+      */}
+      <Tabs.Screen name="aprender" options={{ href: null, title: 'Aprender' }} />
     </Tabs>
   );
 }

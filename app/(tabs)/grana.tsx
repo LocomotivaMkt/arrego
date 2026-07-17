@@ -66,6 +66,7 @@ import {
   parseISODate,
 } from '@/utils/date';
 import { formatCents, formatPercent, ratio } from '@/utils/money';
+import { useLocalSearchParams } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
@@ -265,19 +266,29 @@ function PickerChip({
   );
 }
 
-/** Vazio: um glifo apagado, um título, uma linha e o botão. Nada mais. */
+/**
+ * Vazio: um glifo apagado, um título, uma linha e a ação. Um segundo botão só
+ * aparece quando a aba tem dois jeitos de começar, como "Saiu": anotar o gasto
+ * do dia ou cadastrar uma conta que cai todo mês.
+ */
 function Empty({
   icon,
   title,
   line,
   actionLabel,
+  actionIcon = 'add',
   onAction,
+  secondaryLabel,
+  onSecondary,
 }: {
   icon: IconName;
   title: string;
   line: string;
   actionLabel: string;
+  actionIcon?: IconName;
   onAction: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
 }) {
   return (
     <View style={styles.empty}>
@@ -286,8 +297,11 @@ function Empty({
       <AppText variant="small" tone="muted" style={styles.centered}>
         {line}
       </AppText>
-      <View style={styles.emptyAction}>
-        <Button label={actionLabel} icon="add" onPress={onAction} />
+      <View style={styles.emptyActions}>
+        <Button label={actionLabel} icon={actionIcon} onPress={onAction} />
+        {secondaryLabel !== undefined && onSecondary !== undefined ? (
+          <Button label={secondaryLabel} variant="secondary" onPress={onSecondary} />
+        ) : null}
       </View>
     </View>
   );
@@ -444,7 +458,7 @@ function DeleteHelp({ text }: { text: string }) {
 }
 
 const HELP_ITEM =
-  'Segure a linha na lista. Arquivar para de contar daqui pra frente e mantém os meses passados certos; apagar some com ela de tudo, inclusive do histórico. Item de uma vez só não arquiva — ele já pertence ao mês em que entrou.';
+  'Segure a linha na lista. Arquivar para de contar daqui pra frente e mantém os meses passados certos; apagar some com ela de tudo, inclusive do histórico. Item de uma vez só não arquiva, ele já pertence ao mês em que entrou.';
 
 const HELP_SUBSCRIPTION =
   'Segure a linha na lista. "Cancelei" para de contar daqui pra frente e guarda a prova de que você cortou; apagar some com ela de tudo, como se nunca tivesse existido.';
@@ -664,7 +678,7 @@ function EntrouTab(): ReactNode {
         <Empty
           icon="money"
           title="Nada entrando"
-          line="Salário, mesada, bico, pix da vó — vale tudo."
+          line="Salário, mesada, bico, pix da vó, vale tudo."
           actionLabel="Nova entrada"
           onAction={sheet.openNew}
         />
@@ -709,7 +723,7 @@ function EntrouTab(): ReactNode {
   );
 }
 
-/* ─────────────────────────────── Contas ───────────────────────────────── */
+/* ─────────────────── Saiu (conta fixa + gasto avulso) ──────────────────── */
 
 function expenseWhen(expense: Expense): string {
   return expense.recurring
@@ -782,7 +796,7 @@ function ExpenseForm({ initial, month, onSave, onClose }: ExpenseFormProps) {
         label="Nome"
         value={label}
         onChangeText={setLabel}
-        placeholder="Luz"
+        placeholder="Aluguel"
         error={labelError}
         maxLength={60}
         autoFocus={initial === null}
@@ -837,7 +851,136 @@ function ExpenseForm({ initial, month, onSave, onClose }: ExpenseFormProps) {
   );
 }
 
-function ContasTab(): ReactNode {
+/* ── Filtro e ordem da lista de "Saiu" ── */
+
+type ExpenseFilter = 'tudo' | 'fixas' | 'avulsas';
+
+const EXPENSE_FILTERS: readonly SwitchOption[] = [
+  { key: 'tudo', label: 'Tudo' },
+  { key: 'fixas', label: 'Fixas' },
+  { key: 'avulsas', label: 'Avulsas' },
+];
+
+function toExpenseFilter(key: string): ExpenseFilter {
+  return key === 'fixas' ? 'fixas' : key === 'avulsas' ? 'avulsas' : 'tudo';
+}
+
+function matchesFilter(expense: Expense, filter: ExpenseFilter): boolean {
+  if (filter === 'fixas') return expense.recurring;
+  if (filter === 'avulsas') return !expense.recurring;
+  return true;
+}
+
+/**
+ * Dia do mês em que o item pesa: a conta fixa cai no `dayOfMonth`, o gasto
+ * avulso no dia do `spentOn`. É a chave comum que põe os dois tipos na mesma
+ * ordem, como um calendário do mês. Sem dia (não deveria ocorrer) vai pro fim.
+ */
+function expenseDay(expense: Expense): number {
+  if (expense.recurring) return expense.dayOfMonth ?? 99;
+  return expense.spentOn !== null ? dayOfISO(expense.spentOn) : 99;
+}
+
+function byDayAsc(a: Expense, b: Expense): number {
+  return expenseDay(a) - expenseDay(b);
+}
+
+/**
+ * O nome é o que a retrospectiva do fim do mês lê (ver `engine/retrospect.ts`):
+ * "iFood" seis vezes vira a dica "delivery apareceu 6 vezes". Por isso a dica do
+ * campo pede um nome claro, não um "gasto 1".
+ */
+const QUICK_NAME_HINT = 'Vira a dica do fim do mês. Escreve claro: iFood, Uber, padaria.';
+
+/**
+ * GASTO RÁPIDO. O caso "pão na padaria" em três toques, não oito: sem toggle de
+ * recorrência (é sempre pontual) e sem perguntar a data (é hoje). Quem quer a
+ * conta que cai todo mês usa o formulário completo pelo botão "Nova conta fixa".
+ */
+type QuickExpenseFormProps = {
+  month: MonthKey;
+  onSave: (input: ExpenseInput) => Promise<boolean>;
+  onClose: () => void;
+};
+
+function QuickExpenseForm({ month, onSave, onClose }: QuickExpenseFormProps) {
+  const [cents, setCents] = useState<Cents>(0);
+  const [label, setLabel] = useState('');
+  // Gasto do dia a dia quase sempre é comida ou compra: começa em Mercado, que é
+  // o palpite que a pessoa menos vai precisar trocar.
+  const [category, setCategory] = useState<ExpenseCategory>('mercado');
+  const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const amountError = submitted && cents <= 0 ? AMOUNT_REQUIRED : undefined;
+  const labelError = submitted && label.trim() === '' ? LABEL_REQUIRED : undefined;
+
+  async function submit(): Promise<void> {
+    setSubmitted(true);
+    if (cents <= 0 || label.trim() === '') return;
+
+    setSaving(true);
+    // Pontual e no dia de hoje: o CHECK do schema exige a data e proíbe o
+    // `dayOfMonth` quando não é recorrente. `defaultDay` devolve hoje no mês
+    // corrente e o dia 1 num mês que a pessoa esteja só olhando.
+    const saved = await onSave({
+      label: label.trim(),
+      category,
+      amountCents: cents,
+      recurring: false,
+      dayOfMonth: null,
+      spentOn: dateInMonth(defaultDay(month), month),
+    });
+    if (saved) onClose();
+    else setSaving(false);
+  }
+
+  return (
+    <>
+      <CurrencyField
+        label="Quanto foi"
+        cents={cents}
+        onChangeCents={setCents}
+        error={amountError}
+        autoFocus
+      />
+
+      <TextField
+        label="No que gastou"
+        value={label}
+        onChangeText={setLabel}
+        placeholder="Pão na padaria"
+        hint={QUICK_NAME_HINT}
+        error={labelError}
+        maxLength={60}
+      />
+
+      <Field label="Categoria">
+        <View style={styles.chips}>
+          {EXPENSE_CATEGORIES.map((option) => (
+            <PickerChip
+              key={option}
+              label={EXPENSE_META[option].label}
+              icon={EXPENSE_META[option].icon}
+              selected={category === option}
+              onPress={() => setCategory(option)}
+            />
+          ))}
+        </View>
+      </Field>
+
+      <Button
+        label={saving ? 'Salvando…' : 'Anotar gasto'}
+        onPress={submit}
+        disabled={saving}
+        size="lg"
+        full
+      />
+    </>
+  );
+}
+
+function SaiuTab(): ReactNode {
   const expenses = useArrego((s) => s.expenses);
   const month = useArrego((s) => s.month);
   const addExpense = useArrego((s) => s.addExpense);
@@ -845,17 +988,31 @@ function ContasTab(): ReactNode {
   const archiveExpense = useArrego((s) => s.archiveExpense);
   const removeExpense = useArrego((s) => s.removeExpense);
   const snapshot = useSnapshot();
-  const sheet = useSheet<Expense>();
+
+  // Dois caminhos de escrita, duas folhas: o gasto rápido (sempre pontual, só
+  // "novo") e o formulário completo (conta fixa nova + edição de qualquer item,
+  // fixa ou avulsa). Editar uma linha abre SEMPRE o completo, senão não daria
+  // pra mudar recorrência nem dia de um gasto já salvo.
+  const quick = useSheet<Expense>();
+  const full = useSheet<Expense>();
+
+  const [filter, setFilter] = useState<ExpenseFilter>('tudo');
 
   const active = expenses.filter((expense) => expense.archivedAt === null);
   const archived = expenses.filter((expense) => expense.archivedAt !== null);
+
+  const visible = active.filter((expense) => matchesFilter(expense, filter)).sort(byDayAsc);
+  // Arquivar só é oferecido a item fixo, então "Arquivadas" some sozinho no
+  // filtro "Avulsas" em vez de mostrar contas fixas fora do assunto.
+  const visibleArchived = archived.filter((expense) => matchesFilter(expense, filter));
 
   // Só a tabela `expenses`: assinatura e parcela têm aba e tela próprias, e
   // somá-las aqui faria este total brigar com o do cabeçalho de lá.
   const totalCents = snapshot.expensesFixedCents + snapshot.expensesVariableCents;
 
-  const save = (input: ExpenseInput): Promise<boolean> =>
-    didSave(sheet.target !== null ? updateExpense(sheet.target.id, input) : addExpense(input));
+  const saveQuick = (input: ExpenseInput): Promise<boolean> => didSave(addExpense(input));
+  const saveFull = (input: ExpenseInput): Promise<boolean> =>
+    didSave(full.target !== null ? updateExpense(full.target.id, input) : addExpense(input));
 
   function confirm(expense: Expense): void {
     if (expense.archivedAt !== null) {
@@ -884,7 +1041,7 @@ function ContasTab(): ReactNode {
 
   return (
     <>
-      <TotalHeader label={`Contas de ${formatMonthLong(month)}`} cents={totalCents}>
+      <TotalHeader label={`Saiu em ${formatMonthLong(month)}`} cents={totalCents}>
         <Reveal label="Ver a conta">
           <SplitLine label="Todo mês" cents={snapshot.expensesFixedCents} />
           <SplitLine label="Só neste mês" cents={snapshot.expensesVariableCents} />
@@ -893,40 +1050,65 @@ function ContasTab(): ReactNode {
 
       {active.length > 0 ? (
         <>
-          <Button label="Nova conta" icon="add" onPress={sheet.openNew} full />
+          {/* Amarelo só em "Gastei", a ação principal desta aba. "Nova conta
+              fixa" é secondary: cresce só o quanto o texto pede, e o "Gastei"
+              estica pra ocupar o resto e continuar sendo o maior alvo. */}
+          <Row gap={spacing.sm}>
+            <View style={styles.grow}>
+              <Button label="Gastei" icon="minus" onPress={quick.openNew} full />
+            </View>
+            <Button label="Nova conta fixa" variant="secondary" onPress={full.openNew} />
+          </Row>
 
-          <View>
-            {active.map((expense) => (
-              <ListRow
-                key={expense.id}
-                title={expense.label}
-                subtitle={expenseSubtitle(expense)}
-                leading={<Icon name={EXPENSE_META[expense.category].icon} />}
-                trailing={<MoneyText cents={expense.amountCents} tone="neutral" />}
-                accessibilityLabel={expenseLabel(expense)}
-                onPress={() => sheet.openEdit(expense)}
-                onLongPress={() => confirm(expense)}
-              />
-            ))}
-          </View>
+          <Segmented
+            options={EXPENSE_FILTERS}
+            value={filter}
+            onChange={(key) => setFilter(toExpenseFilter(key))}
+          />
+
+          {visible.length > 0 ? (
+            <View>
+              {visible.map((expense) => (
+                <ListRow
+                  key={expense.id}
+                  title={expense.label}
+                  subtitle={expenseSubtitle(expense)}
+                  leading={<Icon name={EXPENSE_META[expense.category].icon} />}
+                  trailing={<MoneyText cents={expense.amountCents} tone="neutral" />}
+                  accessibilityLabel={expenseLabel(expense)}
+                  onPress={() => full.openEdit(expense)}
+                  onLongPress={() => confirm(expense)}
+                />
+              ))}
+            </View>
+          ) : (
+            <AppText variant="small" tone="muted" style={styles.centered}>
+              {filter === 'fixas'
+                ? 'Nenhuma conta fixa por aqui.'
+                : 'Nenhum gasto avulso por aqui.'}
+            </AppText>
+          )}
         </>
       ) : (
         <Empty
-          icon="bill"
-          title="Nenhuma conta"
-          line="Começa pela maior: aluguel, luz, internet."
-          actionLabel="Nova conta"
-          onAction={sheet.openNew}
+          icon="cash"
+          title="Nada saiu ainda"
+          line="Um lanche, o busão, a conta de luz: anota tudo aqui."
+          actionLabel="Gastei"
+          actionIcon="minus"
+          onAction={quick.openNew}
+          secondaryLabel="Nova conta fixa"
+          onSecondary={full.openNew}
         />
       )}
 
-      {archived.length > 0 ? (
+      {visibleArchived.length > 0 ? (
         <View style={styles.section}>
           <AppText variant="caption" tone="muted">
             Arquivadas
           </AppText>
           <View>
-            {archived.map((expense) => (
+            {visibleArchived.map((expense) => (
               <ListRow
                 key={expense.id}
                 title={expense.label}
@@ -934,7 +1116,7 @@ function ContasTab(): ReactNode {
                 leading={<Icon name={EXPENSE_META[expense.category].icon} tone="muted" />}
                 trailing={<MoneyText cents={expense.amountCents} tone="neutral" />}
                 accessibilityLabel={expenseLabel(expense)}
-                onPress={() => sheet.openEdit(expense)}
+                onPress={() => full.openEdit(expense)}
                 onLongPress={() => confirm(expense)}
               />
             ))}
@@ -942,17 +1124,26 @@ function ContasTab(): ReactNode {
         </View>
       ) : null}
 
+      <Sheet visible={quick.visible} onClose={quick.close} title="Novo gasto">
+        <QuickExpenseForm
+          key={quick.session}
+          month={month}
+          onSave={saveQuick}
+          onClose={quick.close}
+        />
+      </Sheet>
+
       <Sheet
-        visible={sheet.visible}
-        onClose={sheet.close}
-        title={sheet.target !== null ? 'Editar conta' : 'Nova conta'}
+        visible={full.visible}
+        onClose={full.close}
+        title={full.target !== null ? 'Editar gasto' : 'Nova conta fixa'}
       >
         <ExpenseForm
-          key={sheet.session}
-          initial={sheet.target}
+          key={full.session}
+          initial={full.target}
           month={month}
-          onSave={save}
-          onClose={sheet.close}
+          onSave={saveFull}
+          onClose={full.close}
         />
       </Sheet>
     </>
@@ -1202,7 +1393,7 @@ function AssinaturasTab(): ReactNode {
           <View style={styles.alert}>
             <Badge severity="warning" label={`${formatPercent(share)} da renda`} />
             <AppText variant="small" tone="secondary">
-              Acima de 10% já pesa. Cancela uma — só uma.
+              Acima de 10% já pesa. Cancela uma, só uma.
             </AppText>
           </View>
         ) : (
@@ -1290,16 +1481,16 @@ function AssinaturasTab(): ReactNode {
 
 /* ──────────────────────────────── Tela ────────────────────────────────── */
 
-type Tab = 'entrou' | 'contas' | 'assinaturas';
+type Tab = 'entrou' | 'saiu' | 'assinaturas';
 
 const TABS: readonly SwitchOption[] = [
   { key: 'entrou', label: 'Entrou' },
-  { key: 'contas', label: 'Contas' },
+  { key: 'saiu', label: 'Saiu' },
   { key: 'assinaturas', label: 'Assinaturas' },
 ];
 
 function toTab(key: string): Tab {
-  return key === 'contas' ? 'contas' : key === 'assinaturas' ? 'assinaturas' : 'entrou';
+  return key === 'saiu' ? 'saiu' : key === 'assinaturas' ? 'assinaturas' : 'entrou';
 }
 
 /**
@@ -1308,7 +1499,11 @@ function toTab(key: string): Tab {
  * mesmo posto. O número é o título desta tela.
  */
 export default function GranaScreen(): ReactNode {
-  const [tab, setTab] = useState<Tab>('entrou');
+  // `?aba=saiu` vem do atalho "Gastei" do Início: quem quer anotar um gasto na
+  // fila da padaria chega direto na aba certa, sem passar por "Entrou". É o que
+  // tira dois toques do caminho mais comum do app.
+  const params = useLocalSearchParams<{ aba?: string }>();
+  const [tab, setTab] = useState<Tab>(toTab(params.aba ?? 'entrou'));
   const error = useArrego((s) => s.error);
 
   return (
@@ -1330,7 +1525,7 @@ export default function GranaScreen(): ReactNode {
 
         {/* Cada aba é desmontada ao sair, e isso é de propósito: a folha aberta e
             o rascunho pela metade não sobrevivem à troca de assunto. */}
-        {tab === 'entrou' ? <EntrouTab /> : tab === 'contas' ? <ContasTab /> : <AssinaturasTab />}
+        {tab === 'entrou' ? <EntrouTab /> : tab === 'saiu' ? <SaiuTab /> : <AssinaturasTab />}
       </View>
     </Screen>
   );
@@ -1379,8 +1574,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xxl,
   },
-  emptyAction: { marginTop: spacing.sm },
+  emptyActions: { marginTop: spacing.sm, gap: spacing.sm, alignItems: 'center' },
   centered: { textAlign: 'center' },
+
+  // "Gastei" estica pra ocupar o espaço que "Nova conta fixa" não usa.
+  grow: { flex: 1 },
 
   pressed: { opacity: 0.65 },
 });

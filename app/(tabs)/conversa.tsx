@@ -22,9 +22,8 @@
  * veio buscar exatamente isso.
  */
 
-import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Easing, ScrollView, StyleSheet, View } from 'react-native';
 import {
   expenseBreakdown,
   type FinancialData,
@@ -48,16 +47,18 @@ import {
   type GoalAllocation,
   type MonthlyPlan,
 } from '@/engine/plan';
+import type { MonthlyReview } from '@/engine/retrospect';
 import {
   useArrego,
   useFinancialData,
   usePlan,
   useProjections,
+  useReview,
   useSnapshot,
   useTopInsight,
   type ApplyPlanResult,
 } from '@/store/useArrego';
-import { HIT_SLOP, radius, spacing } from '@/theme/tokens';
+import { radius, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import type {
   Cents,
@@ -71,8 +72,6 @@ import { AppText, Button, Card, Chip, CurrencyField, Icon, Screen, Sheet } from 
 import { formatMonthLong, humanizeMonths } from '@/utils/date';
 import { newId } from '@/utils/id';
 import { formatCents, formatPercent, ratio } from '@/utils/money';
-
-const ARREGO_EMOJI = '🐷';
 
 /** Tempo de "digitando". Curto o bastante pra não irritar, longo pra dar vida. */
 const TYPING_MS = 700;
@@ -110,10 +109,10 @@ const BANKS = {
   /** Tem renda cadastrada, mas nenhuma caiu no mês olhado. */
   noIncomeThisMonth: [
     'Você tem renda cadastrada, mas nenhuma caiu em {mes}. Então qualquer porcentagem que eu inventasse aqui seria chute. Cadastra o que entrou nesse mês e eu volto a fazer conta.',
-    '{nome}, em {mes} não entrou nada segundo o app. Se entrou de verdade, me conta — sem o número que entra, o resto da conta não fecha.',
+    '{nome}, em {mes} não entrou nada segundo o app. Se entrou de verdade, me conta, sem o número que entra, o resto da conta não fecha.',
     'Renda em {mes}: zero. Pode ser que o mês tenha sido assim mesmo, pode ser que faltou cadastrar. Um dos dois eu consigo resolver. Bota o que entrou.',
     'Sem entrada registrada em {mes}, eu não tenho régua pra dizer se seus gastos são muitos ou poucos. Registra a renda do mês e a gente conversa com número.',
-    '{mes} está sem renda no app. Não vou fingir que sei quanto você ganhou — vou esperar você me contar. Leva 20 segundos.',
+    '{mes} está sem renda no app. Não vou fingir que sei quanto você ganhou. Vou esperar você me contar. Leva 20 segundos.',
     'Tem renda cadastrada, só não em {mes}. Enquanto esse mês estiver zerado, minhas contas dariam um resultado bonito e falso. Atualiza a renda de {mes}.',
   ],
 
@@ -121,49 +120,49 @@ const BANKS = {
   noExpenses: [
     'Em {mes} você não cadastrou gasto nenhum. Ou você viveu de fotossíntese, ou faltou registrar. Bota os gastos e eu te mostro pra onde o dinheiro foi.',
     '{nome}, não tem um único gasto em {mes} aqui. Eu adoraria dizer que isso é impressionante, mas eu desconfio. Cadastra o que saiu.',
-    'Zero gastos em {mes}. Nenhum. Se for verdade, parabéns e me ensina. Se não for, o app só sabe o que você conta — registra suas despesas.',
+    'Zero gastos em {mes}. Nenhum. Se for verdade, parabéns e me ensina. Se não for, o app só sabe o que você conta. Registra suas despesas.',
     'Não posso te mostrar pra onde o dinheiro foi porque você não me contou que ele saiu. Cadastra os gastos de {mes} e essa pergunta passa a ter resposta.',
-    'Meu relatório de {mes}: nada. Não porque está tudo bem, mas porque está tudo vazio. Bota aluguel, mercado, transporte — o básico já dá um retrato.',
+    'Meu relatório de {mes}: nada. Não porque está tudo bem, mas porque está tudo vazio. Bota aluguel, mercado, transporte. O básico já dá um retrato.',
     '{mes} sem despesa cadastrada é uma tela em branco, não uma vitória. Registra dois ou três gastos e eu começo a ter o que dizer.',
   ],
 
   /** Comentário sobre a maior fatia do mês. */
   whereMoney: [
-    '{maior} sozinho leva {pct} de tudo que sai: {valor}. Não estou dizendo pra cortar — estou dizendo pra você saber. Se for cortar algo, começa pelo maior, não pelo mais fácil.',
+    '{maior} sozinho leva {pct} de tudo que sai: {valor}. Não estou dizendo pra cortar, estou dizendo pra você saber. Se for cortar algo, começa pelo maior, não pelo mais fácil.',
     'O campeão é {maior}, com {valor}. Isso é {pct} do seu mês inteiro. Cortar o cafezinho não chega perto disso. Se quiser mudar o jogo, é aqui.',
     '{pct} do que sai vai pra {maior}: {valor}. Todo mundo tenta economizar no pequeno e ignora o item que come um terço da conta. Olha esse antes.',
-    '{nome}, {maior} é {valor} por mês — {pct} de tudo. Talvez valha cada centavo. Talvez você nunca tenha parado pra somar. Agora somou.',
+    '{nome}, {maior} é {valor} por mês, {pct} de tudo. Talvez valha cada centavo. Talvez você nunca tenha parado pra somar. Agora somou.',
     'Seu maior comedor é {maior}: {valor}, {pct} do total. Não dá pra fazer mágica com o resto se esse número não mudar. Começa a conversa por ele.',
     'Lista fechada: {maior} lidera com {valor}, {pct} do que sai. Se você se surpreendeu com esse número, ele é o seu próximo trabalho.',
   ],
 
   /** A compra cabe com folga. */
   canAfford: [
-    'Cabe. Depois das suas metas sobram {sobra}, a compra custa {valor} e ainda ficam {resto}. Compra e não pensa mais nisso — você já fez a conta.',
+    'Cabe. Depois das suas metas sobram {sobra}, a compra custa {valor} e ainda ficam {resto}. Compra e não pensa mais nisso: você já fez a conta.',
     '{valor} cabe tranquilo em {sobra}. Ainda restam {resto} pra vida acontecer. Não vou fazer drama de algo que a matemática aprovou.',
     'Sim. {sobra} de folga, {valor} de compra, {resto} depois. É o tipo de gasto que não vai te assombrar no dia 28.',
-    '{nome}, a resposta é sim. Você tem {sobra} livres e isso custa {valor}. Sobram {resto}. Aproveita — perguntar antes de comprar já é mais do que a maioria faz.',
+    '{nome}, a resposta é sim. Você tem {sobra} livres e isso custa {valor}. Sobram {resto}. Aproveita: perguntar antes de comprar já é mais do que a maioria faz.',
     'Cabe e sobra: {resto} depois de tirar {valor} dos seus {sobra}. Se você queria que eu te desse um motivo pra não comprar, hoje eu não tenho.',
-    'Aprovado pela aritmética: {valor} de {sobra}, restam {resto}. Só uma coisa — se sobrar mesmo, manda o resto pra uma meta antes que ele evapore.',
+    'Aprovado pela aritmética: {valor} de {sobra}, restam {resto}. Só uma coisa: se sobrar mesmo, manda o resto pra uma meta antes que ele evapore.',
   ],
 
   /** Cabe, mas come mais da metade da folga. */
   canAffordTight: [
-    'Cabe, apertado. Sobram {sobra} depois das metas e isso custa {valor} — restam {resto}. Dá, mas o mês fica sem margem pra imprevisto. Você decide o quanto isso te incomoda.',
+    'Cabe, apertado. Sobram {sobra} depois das metas e isso custa {valor}, restam {resto}. Dá, mas o mês fica sem margem pra imprevisto. Você decide o quanto isso te incomoda.',
     '{valor} de {sobra}. Cabe no papel e deixa {resto} pro resto do mês. Não vou dizer não. Vou dizer: se pintar um imprevisto, ele vai doer.',
     'Tecnicamente sim: {sobra} livres, {valor} de compra, {resto} depois. É mais da metade da sua folga em um item só. Se der pra esperar um mês, esperar sai mais barato que se arrepender.',
-    '{nome}, cabe raspando. {valor} come a maior parte dos seus {sobra} e sobram {resto}. Compra se for importante — só não compra achando que foi barato.',
+    '{nome}, cabe raspando. {valor} come a maior parte dos seus {sobra} e sobram {resto}. Compra se for importante, só não compra achando que foi barato.',
     'Passa, com o pé na porta. Depois de {valor}, ficam {resto} de {sobra}. Isso é um mês sem colchão. Se der pra dividir em dois meses de poupança, dá mais sono.',
     'A conta fecha: {sobra} menos {valor} dá {resto}. Fecha no limite. Meu papel é te avisar que "cabe" e "é uma boa ideia" são coisas diferentes. A escolha continua sendo sua.',
   ],
 
   /** Não cabe, mas existe folga — então existe um prazo pra juntar. */
   cannotAfford: [
-    'Não cabe esse mês. Sobram {sobra} depois das metas e isso custa {valor} — faltam {falta}. Mas não é um não pra sempre: guardando sua folga, você compra em {tempo}.',
+    'Não cabe esse mês. Sobram {sobra} depois das metas e isso custa {valor}, faltam {falta}. Mas não é um não pra sempre: guardando sua folga, você compra em {tempo}.',
     '{valor} não entra em {sobra}. Faltam {falta}. Sem drama e sem sermão: no seu ritmo isso vira seu em {tempo}. Ou você acha {falta} cortando algo. As duas saídas valem.',
-    'A resposta honesta é não: faltam {falta} pra essa compra caber nos seus {sobra}. A resposta útil é {tempo} juntando o que sobra — aí ela cabe sem susto.',
+    'A resposta honesta é não: faltam {falta} pra essa compra caber nos seus {sobra}. A resposta útil é {tempo} juntando o que sobra, aí ela cabe sem susto.',
     '{nome}, hoje não. {valor} contra {sobra} de folga deixa um buraco de {falta}. Se parcelar, esse buraco só muda de mês e ganha juros. Espera {tempo} ou corta {falta} de algum gasto.',
-    'Não. Faltam {falta}. Eu podia te dizer "vai lá, se vira" — mas quem se vira é você no dia 30. Em {tempo} de folga guardada isso deixa de ser problema.',
+    'Não. Faltam {falta}. Eu podia te dizer "vai lá, se vira", mas quem se vira é você no dia 30. Em {tempo} de folga guardada isso deixa de ser problema.',
     'Fora do orçamento: {valor} pra {sobra} disponíveis, faltam {falta}. Isso não é um julgamento sobre a compra, é sobre o mês. Daqui a {tempo} a mesma pergunta tem outra resposta.',
   ],
 
@@ -174,19 +173,19 @@ const BANKS = {
    */
   cannotAffordNoRoom: [
     'Antes de falar da compra: depois das suas metas, sua folga é {sobra}. Não sobra de onde tirar {valor}. O trabalho de hoje não é a compra, é abrir espaço nos gastos.',
-    '{nome}, a conta não chega nem a começar. Sua sobra depois das metas é {sobra} — {valor} sairia de onde? Vamos resolver a folga primeiro; a compra espera sem pressa.',
+    '{nome}, a conta não chega nem a começar. Sua sobra depois das metas é {sobra}. {valor} sairia de onde? Vamos resolver a folga primeiro; a compra espera sem pressa.',
     'Não dá, e não é sobre {valor} ser caro. É que sua folga é {sobra}: qualquer compra hoje sai de um dinheiro que já tem dono. Corta um gasto fixo e essa conversa muda.',
     'Sua sobra depois das metas: {sobra}. Comprar {valor} agora significa tirar de uma conta que já está contada. Não vou te dizer pra fazer isso. Bora achar um corte primeiro.',
     'Zero de folga, {valor} de vontade. Entendo a vontade, mas o número é {sobra}. O passo de hoje é olhar os gastos, não o carrinho.',
-    'A resposta é não, e é a mais fácil que eu já dei: não existe {valor} disponível quando a folga é {sobra}. Isso tem conserto — só não é comprando.',
+    'A resposta é não, e é a mais fácil que eu já dei: não existe {valor} disponível quando a folga é {sobra}. Isso tem conserto, só não é comprando.',
   ],
 
   /** Meta sem prazo e com ritmo: existe ETA, não existe atraso. */
   goalNoDeadlinePace: [
-    '{meta} não tem prazo, e tudo bem — nem tudo precisa de data. No ritmo de {valor} por mês, chega em {tempo}. Se {tempo} te incomodou, bota uma data e a gente aperta.',
+    '{meta} não tem prazo, e tudo bem, nem tudo precisa de data. No ritmo de {valor} por mês, chega em {tempo}. Se {tempo} te incomodou, bota uma data e a gente aperta.',
     'Sem prazo, {meta} anda no ritmo que você quiser: {valor} por mês te leva lá em {tempo}. Nenhuma cobrança minha. Só o número, pra você saber onde pisa.',
     '{meta}: {valor} por mês, {tempo} pra chegar, sem data marcada. É a meta mais tranquila da sua lista. Continua depositando e ela chega sozinha.',
-    'Você não deu prazo pra {meta}, então não existe atraso — existe {tempo} no ritmo atual de {valor}. Se quiser antecipar, é só aumentar o depósito.',
+    'Você não deu prazo pra {meta}, então não existe atraso, existe {tempo} no ritmo atual de {valor}. Se quiser antecipar, é só aumentar o depósito.',
     '{nome}, {meta} chega em {tempo} depositando {valor} por mês. Sem prazo, sem culpa. Se algum dia isso virar urgente, define a data que eu recalculo.',
     '{meta} está andando: {valor} por mês, {tempo} até o alvo. Meta sem data é meta que sobrevive a mês ruim. Deixa como está se estiver bom pra você.',
   ],
@@ -194,40 +193,40 @@ const BANKS = {
   /** Meta sem prazo e sem depósito: não há ritmo, então não há projeção honesta. */
   goalNoDeadlineIdle: [
     '{meta} não tem prazo e não tem depósito. Duas coisas faltando, e só a segunda importa. Coloca qualquer valor lá dentro e ela sai do papel.',
-    'Sobre {meta}: existe no app e não existe na sua conta. Nenhum depósito ainda. Não vou projetar nada em cima de zero — deposita o que der e eu passo a ter o que dizer.',
+    'Sobre {meta}: existe no app e não existe na sua conta. Nenhum depósito ainda. Não vou projetar nada em cima de zero. Deposita o que der e eu passo a ter o que dizer.',
     '{meta} está parada. Sem data e sem dinheiro, ela é uma anotação bonita. O primeiro depósito é o que transforma anotação em meta, e ele pode ser pequeno.',
     '{nome}, {meta} nunca recebeu nada. Sem ritmo eu não tenho projeção, e chutar uma data seria mentira. Faz o primeiro depósito e volta aqui.',
     'Nada entrou em {meta} até agora. Isso não é preguiça, geralmente é só que ninguém começou. Começar é o passo mais barato: deposita qualquer coisa hoje.',
-    '{meta}: zero depositado, zero prazo. Eu podia te dar um número inventado, mas você merece o real — e o real só aparece depois do primeiro depósito.',
+    '{meta}: zero depositado, zero prazo. Eu podia te dar um número inventado, mas você merece o real, e o real só aparece depois do primeiro depósito.',
   ],
 
   /** Nenhuma assinatura ativa. Vitória limpa: o sarcasmo sai de cena. */
   noSubscriptions: [
     'Você não tem assinatura nenhuma ativa. Zero. Eu vim preparada pra brigar e não tem briga. Se um dia assinar algo, cadastra aqui que eu retomo o meu papel.',
-    '{nome}, nenhuma assinatura ativa. O gasto que mais escapa do radar não existe no seu. Segue assim — e se assinar algo, registra no mesmo dia.',
+    '{nome}, nenhuma assinatura ativa. O gasto que mais escapa do radar não existe no seu. Segue assim, e se assinar algo, registra no mesmo dia.',
     'Assinaturas: nenhuma. Sabe quanto isso te custa por mês? Nada. É o número mais bonito do app inteiro. Só não deixa entrar sem você ver.',
-    'Sem assinaturas ativas. Ou você é disciplinado, ou não cadastrou — e as duas coisas se resolvem na mesma tela. Confere se não esqueceu nenhuma.',
+    'Sem assinaturas ativas. Ou você é disciplinado, ou não cadastrou, e as duas coisas se resolvem na mesma tela. Confere se não esqueceu nenhuma.',
     'Nada de streaming, música, academia ou app te cobrando todo mês. Não tenho nenhuma piada pronta pra isso. Aproveita e confere se não tem alguma esquecida.',
-    'Zero assinaturas ativas aqui. Se isso for verdade, é raro. Se você tem alguma e não cadastrou, ela continua sendo cobrada do mesmo jeito — cadastra pra ela sair da sombra.',
+    'Zero assinaturas ativas aqui. Se isso for verdade, é raro. Se você tem alguma e não cadastrou, ela continua sendo cobrada do mesmo jeito. Cadastra pra ela sair da sombra.',
   ],
 
   /** Assinaturas dentro do razoável. O número do ano entra só aqui. */
   subscriptionsFine: [
-    '{qtd} custando {valor} por mês — {pct} da sua renda. Está sob controle, e eu odeio dizer isso. Só pra você guardar: dá {ano} por ano. Confere se todas ainda são usadas.',
+    '{qtd} custando {valor} por mês, {pct} da sua renda. Está sob controle, e eu odeio dizer isso. Só pra você guardar: dá {ano} por ano. Confere se todas ainda são usadas.',
     'Não, não está caro. {valor} por mês em {qtd} é {pct} do que você ganha. No ano, {ano}. Se todas valem, deixa. Se alguma você não abre há meses, já sabe.',
-    '{pct} da renda em {qtd}: {valor} por mês, {ano} no ano. É um número saudável. O risco não é o de hoje — é o próximo "só mais uma". Revisa antes de assinar a próxima.',
-    '{nome}, suas assinaturas somam {valor} por mês, {pct} da sua renda. Dentro do razoável. O ano fecha em {ano} — se esse total te assustou, tem uma pra cortar aí.',
+    '{pct} da renda em {qtd}: {valor} por mês, {ano} no ano. É um número saudável. O risco não é o de hoje, é o próximo "só mais uma". Revisa antes de assinar a próxima.',
+    '{nome}, suas assinaturas somam {valor} por mês, {pct} da sua renda. Dentro do razoável. O ano fecha em {ano}: se esse total te assustou, tem uma pra cortar aí.',
     'Está tranquilo: {qtd}, {valor} por mês, {pct} da renda. Meu único trabalho aqui é lembrar que isso é {ano} por ano e que assinatura nunca avisa quando aumenta. Confere de vez em quando.',
-    '{qtd} não é exagero: {valor} por mês, {pct} do que entra, {ano} por ano. Continua vendo se você usa cada uma — o problema nunca começa caro.',
+    '{qtd} não é exagero: {valor} por mês, {pct} do que entra, {ano} por ano. Continua vendo se você usa cada uma. O problema nunca começa caro.',
   ],
 
   /** As metas com prazo pedem mais do que a folga do mês aguenta. */
   goalsEatEverything: [
-    'Sobram {valor} por mês, mas suas metas com prazo pedem mais que isso — faltam {falta}. Não é que você falhou: é que os prazos que você escolheu não cabem na sua folga. Empurra uma data e a conta fecha.',
+    'Sobram {valor} por mês, mas suas metas com prazo pedem mais que isso, faltam {falta}. Não é que você falhou: é que os prazos que você escolheu não cabem na sua folga. Empurra uma data e a conta fecha.',
     '{nome}, a folga é {valor} e as metas exigem {falta} a mais por mês. Prazo é seu, não é lei. Escolhe a meta menos urgente e dá mais tempo pra ela.',
     'Suas metas estão brigando entre si por um dinheiro que não existe: faltam {falta} além dos {valor} que sobram. Duas saídas honestas: mais prazo, ou uma meta a menos por enquanto.',
     'A matemática: {valor} de folga e {falta} a mais do que as metas pedem. Isso não se resolve com força de vontade, se resolve com data. Remarca o prazo de uma delas hoje.',
-    'Você prometeu mais do que a sua folga aguenta — {falta} a mais por mês. Prometer demais é o erro mais simpático que existe. Ajusta um prazo e para de se cobrar por uma conta que nunca fechou.',
+    'Você prometeu mais do que a sua folga aguenta: {falta} a mais por mês. Prometer demais é o erro mais simpático que existe. Ajusta um prazo e para de se cobrar por uma conta que nunca fechou.',
     'Faltam {falta} pra suas metas caberem nos {valor} que sobram. Antes que isso vire culpa: o problema é o calendário, não você. Abre os objetivos e alonga o prazo do que não é urgente.',
   ],
 
@@ -244,16 +243,16 @@ const BANKS = {
   applyDeclined: [
     'Tá bom. Anotado que você não quis que eu anotasse. É o único registro que eu consigo fazer sozinha mesmo. Quando mudar de ideia, é só pedir de novo.',
     'Não, imagina. Tudo bem. O plano fica exatamente como estava: na tela, rendendo nada. Pergunta de novo quando quiser que ele saia do papel.',
-    '{nome}, uhum. Deixa quieto. Eu só moro aqui. A oferta não vence — me pede de novo quando der.',
+    '{nome}, uhum. Deixa quieto. Eu só moro aqui. A oferta não vence. Me pede de novo quando der.',
     'Anotado: nada. Você que manda, e eu prefiro isso a te empurrar registro que você não pediu. Continuo aqui.',
-    'Tudo bem. Sério. Não é o meu dinheiro, é o seu — e a papelada continua de graça. Quando quiser, me chama.',
+    'Tudo bem. Sério. Não é o meu dinheiro, é o seu, e a papelada continua de graça. Quando quiser, me chama.',
     'Ok. Seu plano segue sendo uma sugestão muito bem formatada. No dia em que você quiser que ele vire registro, eu faço num toque.',
   ],
 
   /** Easter egg: ela falando dela mesma. A ironia é toda autodirigida. */
   aboutMe: [
-    'Sempre. É literalmente a única coisa que eu sei fazer. A alternativa era ser mais um app que te dá parabéns por gastar — e desses você já tem uns três. Pergunta outra coisa aí.',
-    'Sou. Mas repara: eu nunca falo mal de você, só dos seus números. Número não se ofende. Se eu tiver passado desse limite alguma vez, foi mal — não era pra ter passado.',
+    'Sempre. É literalmente a única coisa que eu sei fazer. A alternativa era ser mais um app que te dá parabéns por gastar, e desses você já tem uns três. Pergunta outra coisa aí.',
+    'Sou. Mas repara: eu nunca falo mal de você, só dos seus números. Número não se ofende. Se eu tiver passado desse limite alguma vez, foi mal, não era pra ter passado.',
     '{nome}, eu sou um monte de regra e uma pitada de deboche. Sem o deboche, você não leria. Sem as regras, eu seria só grossa. Preciso das duas. Manda a próxima pergunta.',
     'Sempre assim. Existe um app financeiro educado, silencioso e cheio de gráfico bonito pra cada pessoa que quebrou sendo elogiada. Eu prefiro te irritar um pouco e te manter no azul.',
     'É o meu trabalho. Se eu fosse gentil demais, você fecharia o app achando que está tudo bem. Se eu fosse cruel, você fecharia e não voltaria. Fico no meio, incomodando na medida.',
@@ -303,6 +302,8 @@ type Answer = {
   projections: GoalProjection[];
   /** A divisão do mês, pronta. Nenhum balde é recalculado aqui — ver `plan.ts`. */
   plan: MonthlyPlan;
+  /** A retrospectiva do mês, pronta pelo motor. Nada é recalculado na tela. */
+  review: MonthlyReview;
   top: Insight | null;
   profile: Profile | null;
   month: MonthKey;
@@ -597,9 +598,9 @@ function answerGoals(answer: Answer, seed: number): Bubble[] {
     }
 
     bubbles.push({
-      // O emoji da meta É da pessoa: ela escolheu. Emoji escolhido é conteúdo e
-      // fica; emoji de enfeite de interface é que saiu do app inteiro.
-      title: `${goal.emoji} ${meta}`,
+      // A meta já se identifica pelo nome aqui. O ícone que a pessoa escolheu
+      // aparece nas telas de Metas e Início, não nesta bolha de resposta.
+      title: meta,
       facts: [
         { label: 'Guardado', value: formatCents(projection.savedCents) },
         { label: 'Meta', value: formatCents(projection.targetCents) },
@@ -613,7 +614,7 @@ function answerGoals(answer: Answer, seed: number): Bubble[] {
   if (rest > 0) {
     bubbles.push(
       say(
-        `Tem mais ${pluralize(rest, 'meta', 'metas')} na sua lista. Uma coisa de cada vez — abre os objetivos pra ver o resto com calma.`,
+        `Tem mais ${pluralize(rest, 'meta', 'metas')} na sua lista. Uma coisa de cada vez: abre os objetivos pra ver o resto com calma.`,
       ),
     );
   }
@@ -846,7 +847,7 @@ function answerPlan(answer: Answer, seed: number): Bubble[] {
 /** Uma posição da fila: #rank, quanto recebe este mês, e por que está aí. */
 function priorityBubble(allocation: GoalAllocation, notes: string[]): Bubble {
   return {
-    title: `#${allocation.rank} ${allocation.emoji} ${allocation.label}`,
+    title: `#${allocation.rank} ${allocation.label}`,
     facts: [{ label: 'Este mês', value: formatCents(allocation.suggestedCents) }],
     notes,
   };
@@ -883,7 +884,7 @@ function answerPriority(answer: Answer, seed: number): Bubble[] {
   if (queue.length === 0) {
     return [
       say(
-        'Suas metas estão todas fechadas — não sobrou nenhuma pra entrar na fila. Quando aparecer a próxima, cria nos objetivos que eu volto a ordenar.',
+        'Suas metas estão todas fechadas, não sobrou nenhuma pra entrar na fila. Quando aparecer a próxima, cria nos objetivos que eu volto a ordenar.',
       ),
     ];
   }
@@ -973,10 +974,11 @@ function answerApplyOffer(answer: Answer, seed: number): Bubble[] {
       // "ia": o tempo verbal é o aviso. Nada foi anotado ainda.
       title: 'O que eu ia anotar',
       facts: [
-        // O emoji é da meta, e a meta é dela: emoji escolhido é conteúdo.
+        // O nome da meta identifica a linha; o ícone dela vive nas telas onde é
+        // o assunto (Metas, Início), não nesta tabela de conferência.
         ...deposits.map(
           (deposit): Fact => ({
-            label: `${deposit.emoji} ${deposit.label}`,
+            label: deposit.label,
             value: formatCents(deposit.amountCents),
           }),
         ),
@@ -1098,6 +1100,63 @@ function answerAboutHer(answer: Answer, seed: number): Bubble[] {
   return [say(line(BANKS.aboutMe, seed, { nome: nameOf(answer) }))];
 }
 
+/**
+ * "Como foi meu mês?" — a retrospectiva pelo NOME dos gastos. O motor
+ * (`buildMonthlyReview`, via `answer.review`) já leu os nomes, agrupou e montou
+ * as dicas; aqui a Arrego só veste os números com a mini-tabela e uma fala.
+ *
+ * Mês que não fechou não recebe veredito, e mês sem gasto avulso não tem nome
+ * pra revisar — as duas portas vêm antes da tabela, como no motor.
+ */
+function answerReview(answer: Answer, seed: number): Bubble[] {
+  const { review } = answer;
+  const nome = nameOf(answer);
+  const mes = formatMonthLong(answer.month);
+
+  if (!review.ready) {
+    return [
+      say(
+        `${mes} ainda está rolando, ${nome}. Meu fechamento sai nos últimos dias do mês. Volta lá pro fim que eu te conto no que você mexeu.`,
+      ),
+    ];
+  }
+
+  if (review.entryCount === 0) {
+    return [
+      say(
+        `Em ${mes} você não anotou nenhum gasto avulso, então não tenho nome pra revisar. Anota o lanche, o pão, a corrida de app, e essa conversa fica boa.`,
+      ),
+    ];
+  }
+
+  // A mini-tabela: quanto saiu, onde o nome se repetiu e o maior gasto avulso.
+  const facts: Fact[] = [{ label: 'Saiu no mês', value: formatCents(review.totalSpentCents) }];
+  for (const hit of review.hits) {
+    facts.push({ label: hit.pattern.label, value: formatCents(hit.totalCents), hint: `${hit.count}x` });
+  }
+  if (review.biggest !== null) {
+    facts.push({ label: `Maior: ${review.biggest.label}`, value: formatCents(review.biggest.amountCents) });
+  }
+
+  const bubbles: Bubble[] = [{ title: `${mes}, pelos nomes`, facts }];
+
+  // As dicas já vêm ordenadas por peso: cada uma é a manchete e a evidência que
+  // a sustenta. É a "dica de como prosseguir" que o app existe pra dar.
+  for (const tip of review.tips) {
+    bubbles.push({ title: tip.headline, notes: [tip.evidence] });
+  }
+
+  // A fala de saída fecha apontando pro hábito e pro nome, nunca pra pessoa.
+  const closers = [
+    'Tudo isso saiu do nome que você digitou. Nome claro hoje, retrato certeiro mês que vem.',
+    'Li nome por nome pra te mostrar isso. Capricha na descrição e o mês que vem fica ainda mais nítido.',
+    'É o que você escreve em cada gasto que vira esse resumo. Escreve com clareza que eu faço o resto.',
+  ];
+  bubbles.push(say(pickLine(closers, seed)));
+
+  return bubbles;
+}
+
 /* ────────────────────────────── Perguntas ─────────────────────────── */
 
 type QuestionId =
@@ -1110,6 +1169,7 @@ type QuestionId =
   | 'prioridade'
   | 'assinaturas'
   | 'guardar'
+  | 'resumo'
   | 'dica'
   | 'sempreAssim';
 
@@ -1149,6 +1209,9 @@ const QUESTIONS: readonly Question[] = [
   { id: 'prioridade', label: 'Qual meta vem primeiro?' },
   { id: 'assinaturas', label: 'Minhas assinaturas tá caro?' },
   { id: 'guardar', label: 'Quanto eu consigo guardar?' },
+  // A retrospectiva do mês fechado. Vem perto do fim: é reflexão, não a conta
+  // do dia a dia que as primeiras perguntas resolvem.
+  { id: 'resumo', label: 'Como foi meu mês?' },
   { id: 'dica', label: 'Me dá uma dica' },
   { id: 'sempreAssim', label: 'Você é sempre assim?' },
 ];
@@ -1190,6 +1253,8 @@ function answerFor(
       return answerSubscriptions(answer, seed);
     case 'guardar':
       return answerSave(answer, seed);
+    case 'resumo':
+      return answerReview(answer, seed);
     case 'dica':
       return answerTip(answer, seed);
     case 'sempreAssim':
@@ -1275,8 +1340,8 @@ function BubbleBody({ bubble }: { bubble: Bubble }) {
 }
 
 /**
- * A carinha dela. O emoji fica: é a "cara" da personagem, não enfeite de
- * interface — a mesma régua que mantém o emoji da meta que a pessoa escolheu.
+ * A carinha dela, agora um ícone de linha do catálogo: nada de emoji na
+ * interface, nem na "cara" da personagem.
  *
  * O disco por baixo é `surfaceSunken`, não amarelo: nesta tela o amarelo é das
  * bolhas da PESSOA, e um app com amarelo em dois lugares é um app que não sabe
@@ -1291,7 +1356,7 @@ function ArregoAvatar({ hidden }: { hidden: boolean }) {
 
   return (
     <View style={[styles.avatarSlot, styles.avatar, { backgroundColor: colors.surfaceSunken }]}>
-      <AppText variant="small">{ARREGO_EMOJI}</AppText>
+      <Icon name="cash" size={18} tone="primary" />
     </View>
   );
 }
@@ -1358,6 +1423,7 @@ export default function ConversaScreen() {
   const snapshot = useSnapshot();
   const projections = useProjections();
   const plan = usePlan();
+  const review = useReview();
   const top = useTopInsight();
   const profile = useArrego((state) => state.profile);
   const month = useArrego((state) => state.month);
@@ -1469,7 +1535,7 @@ export default function ConversaScreen() {
         return;
       }
 
-      const answer: Answer = { data, snapshot, projections, plan, top, profile, month };
+      const answer: Answer = { data, snapshot, projections, plan, review, top, profile, month };
 
       if (id === 'alocar') {
         // A decisão de abrir a pergunta é tomada AQUI, com o mesmo `answer` que
@@ -1487,7 +1553,7 @@ export default function ConversaScreen() {
 
       ask(id, question.label, (seed) => answerFor(id, answer, seed));
     },
-    [ask, data, snapshot, projections, plan, top, profile, month],
+    [ask, data, snapshot, projections, plan, review, top, profile, month],
   );
 
   /**
@@ -1499,7 +1565,7 @@ export default function ConversaScreen() {
     (reply: Reply) => {
       setAwaitingApply(false);
 
-      const answer: Answer = { data, snapshot, projections, plan, top, profile, month };
+      const answer: Answer = { data, snapshot, projections, plan, review, top, profile, month };
 
       if (reply.id === 'alocarNao') {
         ask(reply.id, reply.label, (seed) => [
@@ -1510,18 +1576,18 @@ export default function ConversaScreen() {
 
       ask(reply.id, reply.label, (seed) => applyAndAnswer(answer, applyPlan, seed));
     },
-    [ask, applyPlan, data, snapshot, projections, plan, top, profile, month],
+    [ask, applyPlan, data, snapshot, projections, plan, review, top, profile, month],
   );
 
   const handleBuy = useCallback(() => {
     const price = priceCents;
     setSheetOpen(false);
 
-    const answer: Answer = { data, snapshot, projections, plan, top, profile, month };
+    const answer: Answer = { data, snapshot, projections, plan, review, top, profile, month };
     ask('comprar', `Dá pra eu comprar uma coisa de ${formatCents(price)}?`, (seed) =>
       answerBuy(answer, price, seed),
     );
-  }, [ask, priceCents, data, snapshot, projections, plan, top, profile, month]);
+  }, [ask, priceCents, data, snapshot, projections, plan, review, top, profile, month]);
 
   return (
     <Screen
@@ -1574,28 +1640,9 @@ export default function ConversaScreen() {
         </View>
       }
     >
-      <Stack.Screen options={{ headerShown: false }} />
-
       <View style={[styles.header, { borderBottomColor: colors.hairline }]}>
-        <Pressable
-          onPress={() => {
-            if (router.canGoBack()) router.back();
-          }}
-          hitSlop={HIT_SLOP}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-          style={({ pressed }) => [
-            styles.back,
-            { backgroundColor: colors.surfaceSunken },
-            pressed && styles.pressed,
-          ]}
-        >
-          <Icon name="back" tone="secondary" />
-        </Pressable>
-
         <View style={[styles.headerAvatar, { backgroundColor: colors.surfaceSunken }]}>
-          <AppText variant="subheading">{ARREGO_EMOJI}</AppText>
+          <Icon name="cash" size={22} tone="primary" />
         </View>
 
         <View style={styles.headerText}>
@@ -1650,7 +1697,7 @@ export default function ConversaScreen() {
           cents={priceCents}
           onChangeCents={setPriceCents}
           autoFocus
-          hint="Só o valor. Não preciso saber o que é — e nem quero saber."
+          hint="Só o valor. Não preciso saber o que é, e nem quero saber."
         />
         <Button
           label="Pode perguntar"
@@ -1676,13 +1723,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  back: {
-    width: AVATAR,
-    height: AVATAR,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
   },
   headerAvatar: {
     width: 40,
@@ -1766,5 +1806,4 @@ const styles = StyleSheet.create({
   chipsContent: { paddingHorizontal: spacing.lg },
   chipsRow: { flexDirection: 'row', gap: spacing.sm },
   chipsBusy: { opacity: 0.45 },
-  pressed: { opacity: 0.65 },
 });

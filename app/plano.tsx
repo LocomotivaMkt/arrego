@@ -77,6 +77,7 @@ import {
   StackedBar,
   type IconName,
 } from '@/ui';
+import { GoalIcon } from '@/ui/GoalIcon';
 
 const ROTA_GRANA = '/(tabs)/grana';
 const ROTA_OBJETIVOS = '/(tabs)/objetivos';
@@ -184,9 +185,10 @@ function LinhaDaMeta({
     <View>
       <ListRow
         leading={<MarcaDeRank rank={allocation.rank} />}
-        // O emoji é da PESSOA: ela escolheu esse ícone pra essa meta. É o único
-        // emoji que sobrevive na interface — os outros viraram glifo de linha.
-        title={`${allocation.emoji} ${allocation.label}`}
+        // O `leading` aqui é a POSIÇÃO na fila, que é o assunto desta tela, e o
+        // título é uma string: quem identifica a meta é o nome. O ícone que a
+        // pessoa escolheu aparece nas telas onde ele é o assunto (Metas, Início).
+        title={allocation.label}
         subtitle={semVerba ? 'Sem verba este mês' : legendaDoRitmo(allocation)}
         // Neutro: isto é destino de dinheiro, não ganho. Verde aqui mentiria.
         trailing={<MoneyText cents={allocation.suggestedCents} tone="neutral" tabular />}
@@ -207,20 +209,21 @@ function LinhaDaMeta({
         />
 
         {/*
-          "O plano" e não "você": aqui o ritmo julgado é o SUGERIDO, não o real.
-          A tela de Metas usa "No ritmo" para o ritmo de depósito de verdade. Sem
-          essa palavra, a mesma meta sai verde aqui e vermelha lá no mesmo mês.
+          "O plano" e não "você": aqui o prazo julgado é o do ritmo SUGERIDO, não
+          o real. A tela de Metas usa "No prazo" (sem o "O plano") para o ritmo de
+          depósito de verdade. Sem esse "O plano", a mesma meta sairia verde aqui
+          e vermelha lá no mesmo mês.
         */}
         {allocation.meetsDeadline === true ? (
-          <Badge label="O plano bate o prazo" severity="good" />
+          <Badge label="O plano chega no prazo" severity="good" />
         ) : null}
         {allocation.meetsDeadline === false ? (
-          <Badge label="O plano não bate o prazo" severity="warning" />
+          <Badge label="O plano não chega no prazo" severity="warning" />
         ) : null}
 
         {allocation.meetsDeadline === false && allocation.requiredMonthlyCents !== null ? (
           <AppText variant="small" tone="secondary">
-            {`Precisaria de ${formatCents(allocation.requiredMonthlyCents)}/mês pra bater o prazo e o plano dá ${formatCents(allocation.suggestedCents)}/mês: faltam ${formatCents(allocation.shortfallCents)} por mês. Dá pra subir o valor ou empurrar a data — as duas saídas são honestas.`}
+            {`Precisaria de ${formatCents(allocation.requiredMonthlyCents)}/mês pra chegar no prazo e o plano dá ${formatCents(allocation.suggestedCents)}/mês: faltam ${formatCents(allocation.shortfallCents)} por mês. Dá pra subir o valor ou empurrar a data. As duas saídas são honestas.`}
           </AppText>
         ) : null}
 
@@ -496,7 +499,7 @@ export default function Plano() {
 
         <HeroFigure
           cents={plan.freeCents}
-          label="Sobra pra dividir este mês"
+          label="O que sobra pra você este mês"
           caption={
             temRenda
               ? `${formatPercent(savingShareOfIncome(plan))} vira poupança, ${formatPercent(lazerShareOfIncome(plan))} vira lazer.`
@@ -596,10 +599,10 @@ export default function Plano() {
                 <Reveal label="De onde vem esse alvo?">
                   <AppText variant="small" tone="secondary">
                     {plan.emergency.targetSource === 'usuario'
-                      ? `Este é o alvo que você definiu. Pelos seus gastos de hoje, 6 meses de custo de viver dariam ${formatCents(plan.emergency.suggestedTargetCents)} — dá pra ajustar em Metas se quiser.`
+                      ? `Este é o alvo que você definiu. Pelos seus gastos de hoje, 6 meses de custo de viver dariam ${formatCents(plan.emergency.suggestedTargetCents)}. Dá pra ajustar em Metas se quiser.`
                       : plan.emergency.usedFloor
                         ? 'Este alvo é o mínimo inicial do app, não o seu custo de viver: você ainda não tem gasto cadastrado suficiente pra eu calcular 6 meses do seu mês. Quando tiver, eu recalculo.'
-                        : 'O alvo é 6 meses do seu custo de viver — não da sua renda. A reserva cobre o que o mês exige quando o dinheiro para de entrar.'}
+                        : 'O alvo é 6 meses do seu custo de viver, não da sua renda. A reserva cobre o que o mês exige quando o dinheiro para de entrar.'}
                   </AppText>
                 </Reveal>
               </View>
@@ -784,9 +787,10 @@ export default function Plano() {
           {depositos.map((deposito) => (
             <ListRow
               key={deposito.goalId}
-              // O emoji é o que a PESSOA escolheu pra meta — mesma linha da fila
-              // lá em cima, de propósito: ela precisa reconhecer o que assina.
-              title={`${deposito.emoji} ${deposito.label}`}
+              // O ícone é o que a PESSOA escolheu pra meta: aqui ele ajuda ela a
+              // reconhecer, linha por linha, o que está prestes a assinar.
+              leading={<GoalIcon value={deposito.emoji} />}
+              title={deposito.label}
               trailing={<MoneyText cents={deposito.amountCents} tone="neutral" tabular />}
             />
           ))}

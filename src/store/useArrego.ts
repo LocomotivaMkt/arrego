@@ -50,6 +50,7 @@ import {
   planNote,
   type MonthlyPlan,
 } from '@/engine/plan';
+import { buildMonthlyReview, type MonthlyReview } from '@/engine/retrospect';
 
 /**
  * O que aconteceu ao aplicar o plano. `applied: false` não é erro: o caso mais
@@ -730,6 +731,18 @@ const planOf = memoize(
 const selectPlan = (state: ArregoState): MonthlyPlan =>
   planOf(selectFinancialData(state), selectSnapshot(state), state.month);
 
+/**
+ * A retrospectiva do mês pelos NOMES dos gastos. `buildMonthlyReview` já recebe
+ * o `today` padrão lá dentro — não é papel da tela inventar relógio. Memoiza em
+ * (dados, mês) como todos os outros: mexer em `error` ou digitar não recalcula.
+ */
+const reviewOf = memoize(
+  (data: FinancialData, month: MonthKey): MonthlyReview => buildMonthlyReview(data, month),
+);
+
+const selectReview = (state: ArregoState): MonthlyReview =>
+  reviewOf(selectFinancialData(state), state.month);
+
 export function useFinancialData(): FinancialData {
   return useArrego(selectFinancialData);
 }
@@ -753,4 +766,9 @@ export function useTopInsight(): Insight | null {
 /** O plano do mês: quanto vai pra reserva, pros objetivos e pro lazer. */
 export function usePlan(): MonthlyPlan {
   return useArrego(selectPlan);
+}
+
+/** A retrospectiva do mês: o que os NOMES dos gastos dizem no fechamento. */
+export function useReview(): MonthlyReview {
+  return useArrego(selectReview);
 }
