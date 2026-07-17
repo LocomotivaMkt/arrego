@@ -9,6 +9,8 @@
  * Toda resposta é uma função PURA daqui de baixo: recebe o retrato do mês e
  * devolve `Bubble[]` (uma bolha por item). Nada de I/O, nada de estado —
  * o que a torna testável e impede que uma fala nasça de um número que não existe.
+ * A exceção é `applyAndAnswer`, a única que AGE: ela grava. Por isso ela é a
+ * única que exige confirmação antes de rodar — ver o bloco dela lá embaixo.
  *
  * Regra que atravessa o arquivo: SEM DADO, SEM NÚMERO. Quando falta a renda,
  * falta a régua — e sem régua "R$ 200 é muito?" não tem resposta honesta. Nesses
@@ -38,7 +40,10 @@ import {
   type LineBank,
 } from '@/engine/persona';
 import {
+  appliedPlanTotal,
   lazerShareOfIncome,
+  plannedDeposits,
+  plannedDepositsTotal,
   savingShareOfIncome,
   type GoalAllocation,
   type MonthlyPlan,
@@ -50,6 +55,7 @@ import {
   useProjections,
   useSnapshot,
   useTopInsight,
+  type ApplyPlanResult,
 } from '@/store/useArrego';
 import { HIT_SLOP, radius, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
@@ -223,6 +229,25 @@ const BANKS = {
     'A matemática: {valor} de folga e {falta} a mais do que as metas pedem. Isso não se resolve com força de vontade, se resolve com data. Remarca o prazo de uma delas hoje.',
     'Você prometeu mais do que a sua folga aguenta — {falta} a mais por mês. Prometer demais é o erro mais simpático que existe. Ajusta um prazo e para de se cobrar por uma conta que nunca fechou.',
     'Faltam {falta} pra suas metas caberem nos {valor} que sobram. Antes que isso vire culpa: o problema é o calendário, não você. Abre os objetivos e alonga o prazo do que não é urgente.',
+  ],
+
+  /**
+   * A pessoa disse "deixa quieto". Ela aceita — e a aceitação É a alfinetada:
+   * concordância que discorda, silêncio pontuado, auto-diminuição irônica.
+   *
+   * O que NÃO pode entrar aqui: cobrança. A pessoa acabou de exercer o direito
+   * de não deixar um app gravar registro de dinheiro no lugar dela, e esse
+   * direito é o motivo de a confirmação existir. Se a fala punir o "não", a
+   * próxima resposta vira "sim" por constrangimento — e aí a confirmação
+   * deixa de ser consentimento e vira teatro.
+   */
+  applyDeclined: [
+    'Tá bom. Anotado que você não quis que eu anotasse. É o único registro que eu consigo fazer sozinha mesmo. Quando mudar de ideia, é só pedir de novo.',
+    'Não, imagina. Tudo bem. O plano fica exatamente como estava: na tela, rendendo nada. Pergunta de novo quando quiser que ele saia do papel.',
+    '{nome}, uhum. Deixa quieto. Eu só moro aqui. A oferta não vence — me pede de novo quando der.',
+    'Anotado: nada. Você que manda, e eu prefiro isso a te empurrar registro que você não pediu. Continuo aqui.',
+    'Tudo bem. Sério. Não é o meu dinheiro, é o seu — e a papelada continua de graça. Quando quiser, me chama.',
+    'Ok. Seu plano segue sendo uma sugestão muito bem formatada. No dia em que você quiser que ele vire registro, eu faço num toque.',
   ],
 
   /** Easter egg: ela falando dela mesma. A ironia é toda autodirigida. */
@@ -890,17 +915,182 @@ function answerPriority(answer: Answer, seed: number): Bubble[] {
   return bubbles;
 }
 
+/* ─────────── "Aloca esse dinheiro pra mim" — a resposta que AGE ─────────── */
+
+/**
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │ O ARREGO NÃO MOVE DINHEIRO. Não existe integração bancária: aplicar o    │
+ * │ plano REGISTRA que a pessoa separou o dinheiro. Quem separa de verdade é │
+ * │ ela, no app do banco dela.                                               │
+ * │                                                                          │
+ * │ Nenhuma fala daqui pode sugerir movimentação. Se a pessoa sair desta     │
+ * │ conversa achando que o app transferiu, ela passa meses com uma reserva   │
+ * │ que só existe no gráfico — dano real, e o limite mais duro desta tela.   │
+ * │ Os bancos `apply*` de `persona.ts` já carregam essa regra: `applyOffer`  │
+ * │ avisa antes, `applyDone` manda transferir depois. Não invente fala nova  │
+ * │ aqui, e não "melhore" a de lá.                                           │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ */
+
+/**
+ * Existe divisão pra oferecer?
+ *
+ * Mesma pergunta que `answerApplyOffer` faz — e de propósito: os chips de
+ * "pode anotar / deixa quieto" nascem daqui e a bolha nasce de lá. Se as duas
+ * respostas divergirem, a pessoa vê a Arrego dizer "não tem nada pra anotar" com
+ * dois botões embaixo perguntando se pode anotar.
+ */
+function offersApply(answer: Answer): boolean {
+  return !nothingRegistered(answer.data) && plannedDeposits(answer.plan).length > 0;
+}
+
+/**
+ * Ela abre a conta e PERGUNTA. Não grava nada — quem grava é `applyAndAnswer`,
+ * e só depois do "pode anotar".
+ *
+ * A tabela mostra TODAS as metas, sem o corte de `MAX_GOALS_IN_ANSWER`. Aquele
+ * teto existe pra não empilhar 12 bolhas de comentário; aqui é uma tabela só, e
+ * cada linha dela é um registro que vai acontecer se a pessoa disser sim.
+ * Esconder uma linha seria pedir autorização pra um número que ela não viu.
+ */
+function answerApplyOffer(answer: Answer, seed: number): Bubble[] {
+  const nome = nameOf(answer);
+
+  // Esta pergunta não passa por `answerFor` (ela abre uma confirmação em vez de
+  // só responder), então a porta do app vazio é repetida aqui, como em `answerBuy`.
+  if (nothingRegistered(answer.data)) return [say(line(LINES.emptyState, seed, { nome }))];
+
+  // Plano inviável ou nenhuma meta com sugestão > 0 caem os dois aqui:
+  // `plannedDeposits` devolve vazio nos dois casos. Oferecer agora seria
+  // oferecer pra anotar dinheiro que não existe — que é o começo da ficção.
+  const deposits = plannedDeposits(answer.plan);
+  if (deposits.length === 0) return [say(line(LINES.applyNothing, seed, { nome }))];
+
+  const total = plannedDepositsTotal(answer.plan);
+
+  return [
+    {
+      // "ia": o tempo verbal é o aviso. Nada foi anotado ainda.
+      title: 'O que eu ia anotar',
+      facts: [
+        // O emoji é da meta, e a meta é dela: emoji escolhido é conteúdo.
+        ...deposits.map(
+          (deposit): Fact => ({
+            label: `${deposit.emoji} ${deposit.label}`,
+            value: formatCents(deposit.amountCents),
+          }),
+        ),
+        { op: '=', label: 'Total', value: formatCents(total), total: true },
+      ],
+    },
+    say(
+      line(LINES.applyOffer, seed, {
+        nome,
+        valor: formatCents(total),
+        qtd: pluralize(deposits.length, 'meta', 'metas'),
+      }),
+    ),
+  ];
+}
+
+/**
+ * A única função deste arquivo que não é pura: ela GRAVA, e por isso só roda
+ * depois de a pessoa tocar em "Pode anotar". Um chip não é consentimento pra
+ * escrever registro de dinheiro; o "sim" é.
+ *
+ * O número da fala vem do RETORNO, nunca do plano: entre a oferta e o toque o
+ * motor pode ter enfileirado outra coisa, e `applyPlan` é quem sabe o que de
+ * fato entrou no caderno. Cada `reason` tem o seu banco — inclusive os três que
+ * não gravaram nada, porque um "pronto!" em cima de um erro é como a pessoa fica
+ * com uma reserva imaginária.
+ */
+async function applyAndAnswer(
+  answer: Answer,
+  applyPlan: () => Promise<ApplyPlanResult>,
+  seed: number,
+): Promise<Bubble[]> {
+  const nome = nameOf(answer);
+
+  let result: ApplyPlanResult;
+  try {
+    result = await applyPlan();
+  } catch {
+    // `applyPlan` converte falha de gravação em `reason`. Se ainda assim
+    // estourar, foi no caminho em que o próprio rollback dele quebrou — ou
+    // seja, pode ter sobrado registro. Por isso `applyPartialError` e não
+    // `applyError`: as falas de lá prometem que nada foi gravado, e aqui
+    // ninguém pode prometer isso. Ela manda conferir em vez de tranquilizar.
+    return [say(line(LINES.applyPartialError, seed, { nome }))];
+  }
+
+  switch (result.reason) {
+    case 'ok':
+      // `applyDone` é o único banco em que toda fala manda a pessoa transferir
+      // de verdade. Se um dia uma variação de lá não mandar, o bug é lá.
+      return [
+        say(
+          line(LINES.applyDone, seed, {
+            nome,
+            valor: formatCents(result.totalCents),
+            qtd: pluralize(result.count, 'meta', 'metas'),
+          }),
+        ),
+      ];
+
+    case 'ja-aplicado':
+      // Aqui `totalCents` vem 0 — nada foi gravado AGORA. O número real é o que
+      // já está registrado no mês, senão ela diria "já anotei R$ 0,00".
+      return [
+        say(
+          line(LINES.applyAlready, seed, {
+            nome,
+            valor: formatCents(appliedPlanTotal(answer.data.deposits, answer.month)),
+          }),
+        ),
+      ];
+
+    case 'nada-a-aplicar':
+      return [say(line(LINES.applyNothing, seed, { nome }))];
+
+    case 'mes-futuro':
+      return [say(line(LINES.applyFuture, seed, { nome }))];
+
+    case 'erro':
+      return [say(line(LINES.applyError, seed, { nome }))];
+
+    case 'erro-parcial':
+      // Sobrou registro no banco. `applyError` promete, em todas as variações,
+      // que "nada foi registrado" — aqui isso seria falso, e mentir sobre
+      // dinheiro logo depois de falhar com dinheiro é imperdoável.
+      return [say(line(LINES.applyPartialError, seed, { nome }))];
+  }
+}
+
 /**
  * "Me dá uma dica" — o insight de maior peso, do mesmo motor que alimenta a
  * Início. A fala já vem escolhida e preenchida por `insights.ts`; repescar
  * aqui faria a mesma dica ter duas versões diferentes no mesmo app.
+ *
+ * A AÇÃO do insight vira uma bolha com o rótulo dela. Na Início a saída é um
+ * botão; aqui não existe botão nenhum, então descartar `top.action` — que era o
+ * que este arquivo fazia — deixava a fala sem saída, contra o limite 6 do
+ * contrato de tom. Uma bolha dizendo "abre X" não é elegante, mas é a saída, e
+ * saída existindo ganha de saída bonita.
  */
 function answerTip(answer: Answer, seed: number): Bubble[] {
   const top = answer.top;
   if (top === null) return [say(line(LINES.emptyState, seed, { nome: nameOf(answer) }))];
-  return top.evidence !== null
-    ? [{ title: top.title, notes: [top.evidence] }, say(top.body)]
-    : [say(top.body)];
+
+  const bubbles: Bubble[] =
+    top.evidence !== null
+      ? [{ title: top.title, notes: [top.evidence] }, say(top.body)]
+      : [say(top.body)];
+
+  if (top.action !== null) {
+    bubbles.push(say(`Se quiser resolver agora: ${top.action.label}.`));
+  }
+
+  return bubbles;
 }
 
 /** "Você é sempre assim?" — easter egg. */
@@ -913,6 +1103,7 @@ function answerAboutHer(answer: Answer, seed: number): Bubble[] {
 type QuestionId =
   | 'mes'
   | 'plano'
+  | 'alocar'
   | 'onde'
   | 'comprar'
   | 'metas'
@@ -922,18 +1113,36 @@ type QuestionId =
   | 'dica'
   | 'sempreAssim';
 
+/**
+ * As duas respostas à pergunta dela. Não são perguntas: são o sim e o não.
+ * Entram na seed como qualquer outra fala da pessoa, senão o "deixa quieto"
+ * responderia a mesma frase todas as vezes.
+ */
+type ReplyId = 'alocarSim' | 'alocarNao';
+
+/** Tudo que a PESSOA pode dizer aqui. É o que `ask` recebe. */
+type SaidId = QuestionId | ReplyId;
+
 type Question = { id: QuestionId; label: string };
+type Reply = { id: ReplyId; label: string };
 
 /**
  * A ordem é a da utilidade: as perguntas que resolvem o mês vêm primeiro. Os
  * chips rolam na horizontal, então posição é visibilidade — "como eu divido" é
  * a pergunta que o app existe pra responder e não pode nascer fora da tela.
+ * "Aloca esse dinheiro pra mim" vem colada nela porque é a mesma conversa em
+ * dois tempos: ela mostra a divisão, e aí você manda anotar.
  * As duas de meta andam juntas: quem pergunta se elas dão certo pergunta em
  * seguida qual vem primeiro.
  */
 const QUESTIONS: readonly Question[] = [
   { id: 'mes', label: 'Como eu tô esse mês?' },
   { id: 'plano', label: 'Como eu divido meu dinheiro?' },
+  // "Anota", não "aloca": o rótulo é a única coisa que fica na cabeça de quem
+  // varre a lista sem ler a resposta, e "aloca" promete um movimento de
+  // dinheiro que este app não faz. O resto do arquivo cumpre esse contrato; o
+  // chip era a única peça que o contradizia.
+  { id: 'alocar', label: 'Anota essa divisão pra mim' },
   { id: 'onde', label: 'Onde meu dinheiro tá indo?' },
   { id: 'comprar', label: 'Dá pra eu comprar X?' },
   { id: 'metas', label: 'Minhas metas vão dar certo?' },
@@ -944,7 +1153,20 @@ const QUESTIONS: readonly Question[] = [
   { id: 'sempreAssim', label: 'Você é sempre assim?' },
 ];
 
-function answerFor(id: Exclude<QuestionId, 'comprar'>, answer: Answer, seed: number): Bubble[] {
+/** O sim e o não. Ocupam o lugar das perguntas enquanto ela espera resposta. */
+const APPLY_REPLIES: readonly Reply[] = [
+  { id: 'alocarSim', label: 'Pode anotar' },
+  { id: 'alocarNao', label: 'Deixa quieto' },
+];
+
+function answerFor(
+  // 'comprar' abre a Sheet e 'alocar' abre uma confirmação: as duas são
+  // atendidas na tela, antes daqui. O Exclude é o que mantém este switch
+  // exaustivo sem um `default` que engoliria uma pergunta nova em silêncio.
+  id: Exclude<QuestionId, 'comprar' | 'alocar'>,
+  answer: Answer,
+  seed: number,
+): Bubble[] {
   // Tela vazia tem exatamente um próximo passo, e ele não é uma análise de
   // nada. O easter egg passa: ele não fala de número nenhum, então não há
   // número pra inventar — e negar a única pergunta que funcionaria seria só
@@ -1140,26 +1362,43 @@ export default function ConversaScreen() {
   const profile = useArrego((state) => state.profile);
   const month = useArrego((state) => state.month);
   const hydrated = useArrego((state) => state.hydrated);
+  const applyPlan = useArrego((state) => state.applyPlan);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [typing, setTyping] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [priceCents, setPriceCents] = useState<Cents>(0);
 
+  /** Ela perguntou se pode anotar e está esperando. Ver `handleQuestion`. */
+  const [awaitingApply, setAwaitingApply] = useState(false);
+
   const scrollRef = useRef<ScrollView>(null);
+  const chipsRef = useRef<ScrollView>(null);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const greeted = useRef(false);
+
+  /** A tela ainda existe? Só o `build` assíncrono (a alocação) precisa saber. */
+  const alive = useRef(true);
 
   /** Quantas vezes cada pergunta já foi feita nesta sessão. Entra na seed. */
   const askCount = useRef<Record<string, number>>({});
 
   useEffect(() => {
+    alive.current = true;
     const pending = timers.current;
     return () => {
+      alive.current = false;
       pending.forEach(clearTimeout);
       pending.clear();
     };
   }, []);
+
+  // Os dois chips de resposta nascem à esquerda. Se a fila de perguntas estava
+  // rolada, o conteúdo encolhe de dez chips pra dois e eles podem nascer fora da
+  // tela — e esta é justamente a pergunta que não dá pra abandonar no meio.
+  useEffect(() => {
+    chipsRef.current?.scrollTo({ x: 0, animated: true });
+  }, [awaitingApply]);
 
   // A saudação espera a hidratação: montar antes do perfil chegar chamaria a
   // pessoa de "Chefe" pra sempre — a fala inicial nasce uma vez e nunca recalcula.
@@ -1180,7 +1419,14 @@ export default function ConversaScreen() {
   }, [messages, typing]);
 
   const ask = useCallback(
-    (id: QuestionId, userText: string, build: (seed: number) => Bubble[]) => {
+    /**
+     * `build` pode devolver uma promessa porque UMA resposta grava antes de
+     * falar (a alocação). Nesse caso os pontinhos ficam no ar até o disco
+     * responder, em vez de os 700ms fixos — que é o que um app de mensagem faz
+     * e, por acaso, a única forma honesta: a fala precisa do número real.
+     * As outras nove continuam síncronas e não sabem que isto existe.
+     */
+    (id: SaidId, userText: string, build: (seed: number) => Bubble[] | Promise<Bubble[]>) => {
       const count = (askCount.current[id] ?? 0) + 1;
       askCount.current[id] = count;
 
@@ -1194,12 +1440,16 @@ export default function ConversaScreen() {
 
       const timer = setTimeout(() => {
         timers.current.delete(timer);
-        const bubbles = build(seed);
-        setMessages((prev) => [
-          ...prev,
-          ...bubbles.map((bubble): Message => ({ id: newId(), from: 'arrego', bubble })),
-        ]);
-        setTyping(false);
+        void Promise.resolve(build(seed)).then((bubbles) => {
+          // Saiu da tela no meio da gravação: o registro está salvo (quem grava
+          // é a store, não esta tela), só não tem mais bolha pra receber.
+          if (!alive.current) return;
+          setMessages((prev) => [
+            ...prev,
+            ...bubbles.map((bubble): Message => ({ id: newId(), from: 'arrego', bubble })),
+          ]);
+          setTyping(false);
+        });
       }, TYPING_MS);
 
       timers.current.add(timer);
@@ -1220,9 +1470,47 @@ export default function ConversaScreen() {
       }
 
       const answer: Answer = { data, snapshot, projections, plan, top, profile, month };
+
+      if (id === 'alocar') {
+        // A decisão de abrir a pergunta é tomada AQUI, com o mesmo `answer` que
+        // vai montar a bolha: `offersApply` e `answerApplyOffer` leem o mesmo
+        // plano, então os chips e a fala não têm como discordar.
+        //
+        // Trocar os chips já, durante a digitação, é de propósito: eles nascem
+        // inativos (`disabled={typing}`) e acendem junto com a pergunta. Deixar
+        // as perguntas normais no ar nesse meio-tempo abriria a janela exata em
+        // que dá pra fugir da pergunta sem responder.
+        if (offersApply(answer)) setAwaitingApply(true);
+        ask(id, question.label, (seed) => answerApplyOffer(answer, seed));
+        return;
+      }
+
       ask(id, question.label, (seed) => answerFor(id, answer, seed));
     },
     [ask, data, snapshot, projections, plan, top, profile, month],
+  );
+
+  /**
+   * O sim e o não. O "não" é uma fala e acabou; o "sim" é a única coisa nesta
+   * tela que escreve no caderno — e ele só chega aqui porque a pessoa leu a
+   * conta e tocou em "Pode anotar".
+   */
+  const handleReply = useCallback(
+    (reply: Reply) => {
+      setAwaitingApply(false);
+
+      const answer: Answer = { data, snapshot, projections, plan, top, profile, month };
+
+      if (reply.id === 'alocarNao') {
+        ask(reply.id, reply.label, (seed) => [
+          say(line(BANKS.applyDeclined, seed, { nome: nameOf(answer) })),
+        ]);
+        return;
+      }
+
+      ask(reply.id, reply.label, (seed) => applyAndAnswer(answer, applyPlan, seed));
+    },
+    [ask, applyPlan, data, snapshot, projections, plan, top, profile, month],
   );
 
   const handleBuy = useCallback(() => {
@@ -1239,10 +1527,14 @@ export default function ConversaScreen() {
     <Screen
       footer={
         <View style={styles.footer}>
+          {/* A legenda troca junto com os chips: sem isso a tela pede "pergunta
+              pra ela" em cima de dois botões que são resposta, e a pessoa não
+              entende que a conversa parou esperando ela. */}
           <AppText variant="caption" tone="muted">
-            PERGUNTA PRA ELA
+            {awaitingApply ? 'RESPONDE PRA ELA' : 'PERGUNTA PRA ELA'}
           </AppText>
           <ScrollView
+            ref={chipsRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.chipsScroll}
@@ -1255,14 +1547,28 @@ export default function ConversaScreen() {
                 View decorativa e some do leitor de tela, e aí a lista inteira de
                 perguntas pisca fora de existência a cada resposta. */}
             <View style={[styles.chipsRow, typing && styles.chipsBusy]}>
-              {QUESTIONS.map((question) => (
-                <Chip
-                  key={question.id}
-                  label={question.label}
-                  disabled={typing}
-                  onPress={() => handleQuestion(question)}
-                />
-              ))}
+              {/* Ela perguntou se pode anotar: as perguntas dão lugar ao sim e
+                  ao não. Não é birra — é que "aloca" grava registro de dinheiro,
+                  e sair pela tangente tocando em outra pergunta deixaria a
+                  autorização no ar, meio dada. Ou você responde, ou você diz não;
+                  as duas saídas custam um toque. */}
+              {awaitingApply
+                ? APPLY_REPLIES.map((reply) => (
+                    <Chip
+                      key={reply.id}
+                      label={reply.label}
+                      disabled={typing}
+                      onPress={() => handleReply(reply)}
+                    />
+                  ))
+                : QUESTIONS.map((question) => (
+                    <Chip
+                      key={question.id}
+                      label={question.label}
+                      disabled={typing}
+                      onPress={() => handleQuestion(question)}
+                    />
+                  ))}
             </View>
           </ScrollView>
         </View>

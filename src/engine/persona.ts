@@ -2,33 +2,72 @@
  * A voz da Arrego. Este arquivo é a personalidade do app — trate o texto daqui
  * com o mesmo cuidado que você trataria um cálculo de juros.
  *
- * ┌─────────────────────── CONTRATO DE TOM ───────────────────────────────┐
- * │ A Arrego é passivo-agressiva, sarcástica e debochada. Ela NÃO é cruel. │
- * │                                                                        │
- * │ 1. A ironia recai sobre o NÚMERO e sobre o HÁBITO. Jamais sobre a      │
- * │    pessoa. "R$ 340 em assinaturas é 17% da sua renda" pode. "Você é    │
- * │    irresponsável" não pode, não pode disfarçado, não pode em tom de    │
- * │    brincadeira.                                                        │
- * │ 2. TODA fala termina com uma saída prática. Sarcasmo sem saída é só    │
- * │    maldade. Se a fala não cabe uma saída, a fala está errada.          │
- * │ 3. Dívida nunca vira piada. Parcela nunca vira piada. A pessoa que     │
- * │    está no vermelho já sabe que está — repetir com deboche não informa │
- * │    nada, só machuca. Nesses bancos o humor sai e entra a aliada.       │
- * │ 4. Nada sobre corpo, aparência, inteligência ou valor pessoal. Nunca.  │
- * │ 5. Quando a pessoa ACERTA, o sarcasmo sai de cena. Vitória é limpa.    │
- * │                                                                        │
- * │ Por quê: vergonha financeira faz jovem fechar o app e não voltar. Um   │
- * │ app que humilha não é usado, e um app não usado não ajuda ninguém.     │
- * │ O humor aqui é cúmplice ("olha esse número comigo"), nunca humilhante  │
- * │ ("olha o que você fez"). Na dúvida entre a piada e a pessoa: a pessoa. │
- * └────────────────────────────────────────────────────────────────────────┘
+ * ┌────────── O QUE "PASSIVO-AGRESSIVA" SIGNIFICA AQUI DENTRO ─────────────┐
+ * │ Passivo-agressivo NÃO é "mais malvada". Não é xingar, não é humilhar,   │
+ * │ não é ser cruel. Quem sobe a crueldade achando que está subindo o tom   │
+ * │ errou o alvo E quebrou o contrato. São coisas diferentes, não graus da  │
+ * │ mesma coisa.                                                            │
+ * │                                                                         │
+ * │ É um REGISTRO específico, e ele tem forma:                              │
+ * │   • Falsa gentileza cobrindo a alfinetada. "Que bom que você apareceu." │
+ * │   • Constatação seca, sem adjetivo. O número trabalha sozinho.          │
+ * │   • Contenção ostensiva: dizer que NÃO vai comentar — e comentar.       │
+ * │   • Auto-diminuição irônica. "Mas quem sou eu." / "Eu só moro aqui."    │
+ * │   • Concordância que claramente discorda. "Não, imagina. Tudo bem."     │
+ * │   • O silêncio pontuado. "Anotado." / "Uhum." / "Tá bom."               │
+ * │   • Lembrar, como quem não quer nada, do que a pessoa preferia esquecer.│
+ * │   • Elogio com espinho. "Um recorde pessoal, imagino."                  │
+ * │                                                                         │
+ * │ ECONOMIA DE PALAVRAS é o veículo, não um detalhe de estilo. Quem        │
+ * │ explica a alfinetada não está sendo passivo-agressivo, está sendo       │
+ * │ chato. Fala boa aqui é mais SECA e mais CURTA que a versão educada.     │
+ * │ Na dúvida, corte metade. Piada boa não se explica.                      │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * ┌───────────────── OS LIMITES — não mudam, nunca mudaram ────────────────┐
+ * │ 1. A ironia recai sobre o NÚMERO e sobre o HÁBITO. Jamais sobre a       │
+ * │    pessoa. "R$ 340 em assinaturas é 17% da sua renda" pode. "Você é     │
+ * │    irresponsável" não pode, não pode disfarçado, não pode em tom de     │
+ * │    brincadeira.                                                         │
+ * │ 2. Dívida e aperto NÃO viram piada. Quem está no vermelho já se sente   │
+ * │    mal — repetir com deboche não informa nada, só machuca. Nesses       │
+ * │    bancos ela é seca e útil, no máximo levemente irônica.               │
+ * │ 3. Vitória é LIMPA. Quando a pessoa acerta, o sarcasmo sai de cena por  │
+ * │    completo. Nada de "até que enfim": o momento é inteiro dela.         │
+ * │ 4. Nada sobre corpo, aparência, inteligência ou valor pessoal. Nunca.   │
+ * │ 5. Registrar saque nunca tem tom de punição. Quem tem medo de anotar a  │
+ * │    verdade transforma o app em ficção, e app-ficção não ajuda ninguém.  │
+ * │ 6. TODA FALA CARREGA UMA SAÍDA. Sarcasmo sem saída é só maldade.        │
+ * │    Em `LINES` (conversa) a saída vem no texto, porque lá não há botão.   │
+ * │    Em `SHORT` (telas) ela pode ser o BOTÃO ao lado — mas então tem de    │
+ * │    existir um botão. Esta regra já sumiu deste cabeçalho uma vez, numa   │
+ * │    reescrita, e no mesmo dia uma fala de `noEmergencyFund` virou só um   │
+ * │    susto sem próximo passo. Por isso ela está de volta, numerada.        │
+ * │                                                                         │
+ * │ Por quê: vergonha financeira faz jovem fechar o app e não voltar. Um    │
+ * │ app que humilha não é usado, e um app não usado não ajuda ninguém.      │
+ * │ O humor aqui é cúmplice ("olha esse número comigo"), nunca humilhante   │
+ * │ ("olha o que você fez"). Na dúvida entre a piada e a pessoa: a pessoa.  │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * ┌──── O ARREGO NÃO MOVE DINHEIRO — vale para os bancos `apply*` ─────────┐
+ * │ Não existe integração bancária. Aplicar o plano REGISTRA que a pessoa   │
+ * │ separou o dinheiro; quem separa de verdade é ela, no app do banco dela. │
+ * │                                                                         │
+ * │ A Arrego NUNCA diz "transferi", "aloquei seu dinheiro" ou "mandei pra   │
+ * │ sua reserva". Ela diz "anotei", "registrei", "marquei" — e MANDA a      │
+ * │ pessoa transferir de verdade. Se ela achar que o app transferiu, passa  │
+ * │ meses com uma reserva que só existe no gráfico. Isso é dano real, e     │
+ * │ está acima de qualquer piada deste arquivo.                             │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
  * Placeholders usados nas falas (preenchidos por `fill`):
  *   {nome}  primeiro nome da pessoa      {valor} dinheiro já formatado
  *   {pct}   porcentagem já formatada     {meta}  rótulo do objetivo
  *   {tempo} duração já humanizada        {qtd}   contagem COM o substantivo
- *                                                ("1 assinatura" / "3 assinaturas"),
- *                                                para não gerar "1 assinaturas".
+ *                                                ("1 assinatura" / "3 assinaturas",
+ *                                                "1 meta" / "3 metas"), para não
+ *                                                gerar "1 assinaturas".
  *
  * Só nos bancos do plano (`plan*`), porque lá os três baldes aparecem na mesma
  * frase e um {valor} genérico não diria qual é qual:
@@ -43,11 +82,49 @@
 export type LineBank = Record<string, readonly string[]>;
 
 /**
+ * O registro da Arrego em código, não só em comentário.
+ *
+ * Está exportado de propósito e nenhuma tela consome: é contrato, e contrato
+ * que a UI renderiza vira texto que alguém "melhora" na próxima sprint. Quem
+ * for escrever fala nova lê isto primeiro — o alvo é FALSA GENTILEZA + SECURA,
+ * nunca crueldade. Subir a crueldade não é subir o tom, é trocar de personagem.
+ */
+export const REGISTRO_PASSIVO_AGRESSIVO = {
+  /** O que a Arrego faz quando está no tom certo. */
+  eh: [
+    'Falsa gentileza cobrindo a alfinetada: "Que bom que você apareceu."',
+    'Constatação seca, sem adjetivo. O número faz o trabalho sozinho.',
+    'Contenção ostensiva: dizer que não vai comentar, e daí comentar.',
+    'Auto-diminuição irônica: "Mas quem sou eu." / "Eu só moro aqui."',
+    'Concordância que claramente discorda: "Não, imagina. Tudo bem."',
+    'Silêncio pontuado: "Anotado." / "Uhum." / "Tá bom."',
+    'Lembrar, casualmente, do que a pessoa preferia esquecer.',
+    'Elogio com espinho: "Um recorde pessoal, imagino."',
+  ],
+  /** O que parece a mesma coisa e não é. Se a fala cair aqui, ela está errada. */
+  naoEh: [
+    'Ataque à pessoa: "Você é irresponsável."',
+    'Xingamento: "Que burrice gastar isso."',
+    'Crueldade — e mentira: "Você nunca vai conseguir."',
+    'Sarcasmo de bullying: "PARABÉNS, gênio!"',
+    'Explicar a alfinetada. Quem explica não é passivo-agressivo, é chato.',
+  ],
+  /** Onde o veneno NÃO entra, por mais tentador que seja. */
+  ondeOVenenoNaoEntra: [
+    'Vermelho e aperto (negativeFlow, tightFlow, planImpossible): seca e útil.',
+    'Vitória (goalAchieved, goalOnTrack): sarcasmo sai de cena, o momento é dela.',
+    'Meta sem verba (planGoalStarved): limite de aritmética não é falha de caráter.',
+    'Saque: registrar a verdade nunca tem tom de punição.',
+    'Erro do app (applyError): quem errou fui eu. Informa e sai.',
+  ],
+} as const;
+
+/**
  * Hash FNV-1a das partes. Determinístico e estável entre sessões — é o que
  * garante que a mesma dica, no mesmo mês, seja sempre a mesma frase.
  */
 export function hashSeed(...parts: (string | number)[]): number {
-  const input = parts.join('');
+  const input = parts.join('');
   let hash = 2_166_136_261;
   for (let index = 0; index < input.length; index++) {
     hash ^= input.charCodeAt(index);
@@ -99,36 +176,36 @@ type DayPart = 'madrugada' | 'manha' | 'tarde' | 'noite';
 
 const GREETINGS_BY_PART: Record<DayPart, readonly string[]> = {
   madrugada: [
-    '{nome}, são altas horas e você está conferindo dinheiro. Ou está tudo bem, ou está tudo muito não bem. Vamos ver.',
-    'Abrir app de finanças de madrugada é um pedido de socorro bem específico. Estou aqui. Respira.',
-    'A essa hora o dinheiro está tão dormindo quanto você deveria, {nome}. Mas já que acordou, bora olhar.',
-    '3 da manhã é o horário em que todo mundo decide organizar a vida financeira. Bem-vindo ao clube, {nome}.',
-    '{nome}, nada que você ler aqui agora vai parecer menos assustador do que é. É a hora, não é o número. Amanhã os mesmos dados parecem tratáveis.',
-    'Insônia e planilha mental. Clássico. Já que você está de pé, {nome}, vamos usar isso.',
+    '{nome}, 3 da manhã e você conferindo dinheiro. Não vou perguntar o que te acordou. Vamos olhar.',
+    'Abrir app de finanças a essa hora é um pedido de socorro bem específico. Anotado. Estou aqui.',
+    'A essa hora o dinheiro está dormindo. Você não. Curioso. Já que acordou, {nome}, bora.',
+    'Madrugada é quando todo mundo resolve organizar a vida financeira. Que bom que você chegou, {nome}.',
+    '{nome}, nada que você ler agora vai parecer menos assustador do que é. É a hora, não é o número. Amanhã os mesmos dados parecem tratáveis.',
+    'Insônia e conta de cabeça. Clássico. Já que você está de pé, {nome}, vamos usar isso.',
   ],
   manha: [
-    'Bom dia, {nome}. Antes do café, vamos ver o estrago. Ou a ausência dele.',
-    '{nome} acordou e a primeira coisa que fez foi checar dinheiro. Disciplina ou ansiedade? O resultado é o mesmo. Bom dia.',
-    'Bom dia. Seus números dormiram bem — não mudaram nada desde ontem. É assim que funciona. Vamos ao que interessa.',
-    'Manhã, {nome}. O melhor horário pra decidir sobre dinheiro é agora, antes de o dia te convencer de que você merece coisas.',
-    'Bom dia, {nome}. Começar o dia olhando a real é corajoso. Segue.',
+    'Bom dia, {nome}. Antes do café, o estrago. Ou a ausência dele.',
+    '{nome} acordou e a primeira coisa que fez foi checar dinheiro. Não vou comentar. Bom dia.',
+    'Bom dia. Seus números dormiram bem: não mudaram nada desde ontem. Imagina por quê.',
+    'Manhã, {nome}. Melhor hora pra decidir sobre dinheiro — antes de o dia te convencer de que você merece coisas.',
+    'Bom dia, {nome}. Começar o dia olhando a real. Que surpresa boa.',
     'Café e consciência financeira. Um dos dois é agradável. Bom dia, {nome}.',
   ],
   tarde: [
-    'Boa tarde, {nome}. Metade do dia foi, metade do dinheiro talvez também. Vamos conferir.',
-    '{nome}, boa tarde. Hora perfeita: você já gastou o suficiente pra ter dados e ainda dá tempo de parar.',
-    'Boa tarde. Se você abriu isso depois do almoço, eu tenho um palpite sobre quanto custou o almoço.',
-    '{nome}, olhar as finanças no meio do dia é sinal de que alguma coisa te cutucou. Boa tarde. Vamos achar o quê.',
-    'Boa tarde, {nome}. Vim com números, não com julgamento. Os números às vezes julgam sozinhos — aí não é culpa minha.',
-    'Boa tarde. Você tem alguns minutos e eu tenho algumas observações. Vamos negociar.',
+    'Boa tarde, {nome}. Metade do dia foi. Metade do dinheiro, veremos.',
+    '{nome}, boa tarde. Hora perfeita: já deu tempo de gastar e ainda dá tempo de parar.',
+    'Boa tarde. Se você abriu isso depois do almoço, eu tenho um palpite sobre o almoço.',
+    '{nome}, ninguém olha as finanças no meio do dia por acaso. Boa tarde. Vamos achar o motivo.',
+    'Boa tarde, {nome}. Vim com números, não com julgamento. Os números julgam sozinhos. Não é comigo.',
+    'Boa tarde. Você tem alguns minutos e eu tenho algumas observações. Uma delas você não vai gostar.',
   ],
   noite: [
-    'Boa noite, {nome}. Fim de dia é quando a conta chega. Literalmente. Vamos ver a sua.',
+    'Boa noite, {nome}. Fim de dia é quando a conta chega. Literalmente.',
     '{nome}, boa noite. Nada como terminar o dia revisando escolhas. Bora.',
     'Boa noite. Você sobreviveu ao dia. Seu saldo, veremos.',
-    'Fim de expediente, {nome}. Última tarefa: encarar os números por 2 minutos. Depois pode fechar o app e me esquecer.',
-    'Boa noite, {nome}. Prometo ser rápida e razoavelmente honesta.',
-    '{nome}, boa noite. Vamos fazer isso rápido pra você voltar pro que estava assistindo — que, aliás, você paga uma assinatura pra ver.',
+    'Fim de expediente, {nome}. Última tarefa: 2 minutos de verdade. Depois pode me esquecer de novo.',
+    'Boa noite, {nome}. Prometo ser rápida. Não prometi ser agradável.',
+    '{nome}, boa noite. Rápido, pra você voltar pro que estava assistindo. Que você paga pra ver, aliás.',
   ],
 };
 
@@ -167,12 +244,12 @@ export function greeting(name: string, seed: number): string {
 export const LINES = {
   /** Nenhuma renda cadastrada. Sem régua, nenhuma outra conta significa nada. */
   noIncome: [
-    'Tenho tudo aqui: suas contas, seus gastos, seus sonhos. Falta um detalhe pequeno — de onde vem o dinheiro. Sem renda, qualquer conta que eu fizer dá o mesmo resultado: zero. Cadastra sua renda e eu volto a ser útil.',
-    '{nome}, você me contou o que gasta mas não me contou o que ganha. É pedir pra eu adivinhar o final do filme tendo visto só os créditos. Bota sua renda ali e eu paro de chutar.',
-    'Renda cadastrada: nenhuma. Estou assumindo que você se sustenta com fé e boa vontade. Se não for o caso, cadastra o que entra — salário, mesada, bico, pix da vó. Vale tudo.',
-    'Sem renda no app, eu não tenho régua. R$ 200 em delivery é muito ou é pouco? Não faço ideia. Me dá o número que entra e eu passo a ter opinião.',
-    'Você me deu a metade triste da história. Falta a parte em que o dinheiro chega. Cadastra sua renda — mesmo pouca, mesmo irregular. Pouco e irregular também é número.',
-    'Todo mundo aqui está esperando: as contas, as metas, eu. Estamos esperando você dizer quanto ganha. É o primeiro campo, leva 20 segundos e destrava o resto.',
+    'Tenho suas contas, seus gastos e seus sonhos. Falta um detalhe pequeno: de onde vem o dinheiro. Sem renda, qualquer conta que eu fizer dá zero. Cadastra a renda e eu volto a ser útil.',
+    '{nome}, você me contou o que gasta. Não me contou o que ganha. Me deu a metade triste da história. Bota sua renda ali e eu paro de chutar.',
+    'Renda cadastrada: nenhuma. Estou assumindo que você se sustenta de fé. Se não for o caso, cadastra o que entra — salário, mesada, bico, pix da vó. Vale tudo.',
+    'Sem renda eu não tenho régua. R$ 200 em delivery é muito ou é pouco? Não faço ideia. Me dá o número que entra e eu passo a ter opinião. Você vai adorar.',
+    'Você cadastrou o que sai com um cuidado impressionante. O que entra, não. Não vou tirar conclusão nenhuma disso. Cadastra a renda — mesmo pouca, mesmo irregular. Pouco e irregular também é número.',
+    'Todo mundo aqui está esperando: as contas, as metas, eu. Estamos esperando você dizer quanto ganha. Sem pressa. É o primeiro campo e leva 20 segundos.',
   ],
 
   /** Mês fecha no vermelho. Aqui o deboche sai de cena — a conta já dói sozinha. */
@@ -188,51 +265,51 @@ export const LINES = {
   /** Fecha no zero a zero: sobra existe, mas não aguenta imprevisto. */
   tightFlow: [
     'Você fecha o mês no zero a zero. Sobram {valor} — {pct} da sua renda. Tecnicamente não é dívida. Na prática, é um mês sem margem pra nada dar errado. E às vezes dá. Acha um gasto de {valor} e transforma em folga.',
-    '{pct} de sobra é aquele momento do filme em que o personagem passa raspando pela porta que fecha. Funciona. Até o dia em que o pneu fura. Corta uma assinatura e o susto fica mais barato.',
+    '{pct} de sobra é passar raspando pela porta que fecha. Funciona. Até o dia em que o pneu fura. Corta uma assinatura e o susto fica mais barato.',
     'Sobrar {valor} num mês inteiro é sobreviver, não é planejar. E dá pra melhorar sem virar outra pessoa: um gasto recorrente a menos já dobra essa folga. Escolhe um.',
     'Sua margem é {pct}. Um imprevisto de R$ 200 vira crise — não porque você é irresponsável, mas porque {pct} não aguenta imprevisto nenhum. Vamos subir isso pra 10%, começando por um corte.',
     'Você está no fio. Sobram {valor} e todo mês parece que deu certo por sorte. Sorte não é estratégia. Abre seus gastos e escolhe o mais fácil de matar.',
-    '{nome}, {pct} de folga é o suficiente pra dizer "tá tranquilo" e não o suficiente pra estar tranquilo. Um corte pequeno agora vale mais que um susto grande depois. Bora ver a lista.',
+    '{nome}, {pct} de folga dá pra dizer "tá tranquilo" e não dá pra estar tranquilo. Um corte pequeno agora vale mais que um susto grande depois. Bora ver a lista.',
   ],
 
   /** Assinaturas passando de 10% da renda. O gasto que ninguém vê sair. */
   subscriptionHeavy: [
-    '{qtd}. {valor} por mês. {pct} da sua renda. Não estou julgando. Só deixando o número aqui, bem grande, na sua frente. Cancela uma e a gente não fala mais nisso.',
-    '{valor} por mês em {qtd} — {pct} do que você ganha. Se vale a pena, deixa quieto. Se você hesitou agora, já sabe qual cancelar.',
-    '{pct} da sua renda vira assinatura todo mês, no automático, sem você tocar em nada. É o gasto mais educado que existe: nunca avisa, nunca incomoda, só sai. {qtd}, {valor}. Revisa a lista.',
-    '{qtd} comendo {pct} da sua renda. Tem alguma aí que você esqueceu que assinou e que continua sendo cobrada com muito carinho. Abre a lista e mata a esquecida.',
-    '{valor} por mês em {qtd}. Ninguém te pergunta se pode — a cobrança só chega, se serve, e vai embora com {pct} do seu dinheiro. Uma revisão de 2 minutos resolve.',
-    'Matemática rápida: {valor} por mês em {qtd} é {pct} do que você ganha. Por ano é bem mais do que você imagina, e eu não vou fazer essa conta agora pra não estragar seu dia. Cancela uma. Só uma.',
+    '{qtd}. {valor} por mês. {pct} da sua renda. Mas quem sou eu pra falar. Só deixei o número aqui, bem grande, na sua frente. Cancela uma e eu esqueço o assunto.',
+    '{valor} por mês em {qtd} — {pct} do que você ganha. Se vale a pena, deixa quieto. Você hesitou agora. Já sabe qual cancelar.',
+    '{pct} da sua renda vira assinatura no automático, sem você tocar em nada. É o gasto mais educado que existe: nunca avisa, nunca incomoda, só sai. {qtd}, {valor}. Revisa a lista.',
+    '{qtd} comendo {pct} da sua renda. Tem alguma aí que você esqueceu que assinou. Ela não esqueceu de você — cobra todo mês, com muito carinho. Abre a lista e mata a esquecida.',
+    '{valor} por mês em {qtd}. Ninguém te pergunta se pode: a cobrança chega, serve, e vai embora com {pct} do seu dinheiro. Uma revisão de 2 minutos resolve. Mas faz como quiser.',
+    'Conta rápida: {valor} por mês em {qtd} é {pct} do que você ganha. Multiplica por 12 se quiser estragar seu dia. Eu não vou fazer isso por você. Cancela uma. Só uma.',
   ],
 
   /** Parcelas passando de 30% da renda. Nunca culpar — parcelar não é crime. */
   cardHeavy: [
-    '{pct} da sua renda já está comprometida com parcelas: {valor} por mês. É o seu "eu do passado" cobrando aluguel do seu "eu do presente". Não parcela mais nada esse mês e o futuro melhora sozinho.',
+    '{pct} da sua renda já tem dono: {valor} por mês em parcelas. É o seu eu do passado cobrando aluguel do seu eu do presente. Não parcela mais nada esse mês e o futuro melhora sozinho.',
     '{valor} em parcelas todo mês, {pct} do que entra. Parcelar não é crime e não te faz irresponsável — mas cada 12x é um compromisso de um ano com uma versão sua que ainda nem existe. Segura o cartão até isso baixar.',
-    '{pct} da sua renda já tem dono antes de você acordar: {valor} em parcelas. A boa notícia é que parcela acaba. A ruim é que só acaba se você parar de criar novas. Olha no cartão qual termina primeiro.',
+    '{pct} da sua renda acorda comprometida: {valor} em parcelas. A boa notícia é que parcela acaba. A ruim é que só acaba se você parar de criar novas. Olha no cartão qual termina primeiro.',
     'Seu cartão consome {pct} da sua renda em parcelas ({valor}). Cada "são só 10x de R$ 89" virou isso aqui. Não é pra se martirizar, é pra parar de somar. Abre o cartão e vê o que dá pra quitar antes.',
-    '{valor} por mês em parcelas. Você já gastou esse dinheiro — só está pagando em câmera lenta. O melhor movimento agora é o mais chato: não parcelar nada novo até {pct} virar um número menor.',
-    '{pct} da renda em parcelas é o tipo de número que aperta sem fazer barulho. Você sente no fim do mês e não sabe de onde veio. Veio daqui: {valor}. Lista o que ainda falta no cartão e para de aumentar a fila.',
+    '{valor} por mês em parcelas. Você já gastou esse dinheiro — está pagando em câmera lenta e sentindo em tempo real. O melhor movimento agora é o mais chato: não parcelar nada novo até {pct} virar um número menor.',
+    '{pct} da renda em parcelas aperta sem fazer barulho. Você sente no fim do mês e não sabe de onde veio. Veio daqui: {valor}. Lista o que ainda falta no cartão e para de aumentar a fila.',
   ],
 
   /** Guardando 20%+. Elogio passivo-agressivo — reconhece sem bajular. */
   goodSavings: [
     '{pct} da sua renda sobra. Isso é bom. Estou desconfortável com isso: meu trabalho é reclamar e você me deixou sem assunto. Já que sobraram {valor}, manda pra uma meta antes que vire delivery.',
     'Você guarda {pct}. A média do país não faz isso. Não vou te dar parabéns porque você já sabe. Vou dizer o que falta: {valor} parado não vira nada. Bota numa meta.',
-    '{valor} de sobra, {pct} da renda. Olha, tá bom. Tá bom mesmo. Agora não deixa esse dinheiro solto na conta, porque dinheiro solto some sem explicação. Dá um nome pra ele nos objetivos.',
+    '{valor} de sobra, {pct} da renda. Um recorde pessoal, imagino. Agora não deixa esse dinheiro solto na conta, porque dinheiro solto some sem explicação. Dá um nome pra ele nos objetivos.',
     'Sobrar {pct} não foi sorte, foi escolha. Reconhecido. O próximo erro clássico é achar que sobrou porque você merece um agrado — sobrou porque você segurou. Manda {valor} pra uma meta e segue.',
-    '{pct} guardados. Você está oficialmente na parte chata e correta do dinheiro. Fica aqui. O passo seguinte é destinar {valor} pra algo com nome, senão o mês que vem come tudo.',
-    'Sua taxa é {pct}. Não vou fazer piada — você está indo bem e eu sei perder. Só não deixa {valor} boiando na conta corrente. Escolhe uma meta e joga lá dentro.',
+    '{pct} guardados. Você está oficialmente na parte chata e correta do dinheiro. Fica aqui. Destina {valor} pra algo com nome, senão o mês que vem come tudo e a gente finge que não viu.',
+    'Sua taxa é {pct}. Não vou fazer piada — eu sei perder. Só não deixa {valor} boiando na conta corrente. Escolhe uma meta e joga lá dentro.',
   ],
 
   /** Guardando entre 5% e 10%: existe, mas ainda não conta. */
   lowSavings: [
-    'Você guarda {pct} da sua renda. Existe, mas é pouco: nesse ritmo, um mês ruim apaga três meses bons. Sobe pra 10% e a conta muda de personalidade.',
-    'Sobraram {valor} — {pct}. É o começo de alguma coisa, e eu prefiro isso a zero. Só não confunde "começou" com "resolveu". Acha mais {valor} em algum gasto e dobra a folga.',
-    '{pct}. Você guarda o suficiente pra dizer que guarda e não o suficiente pra que isso importe. Um corte pequeno resolve — começa pelo gasto que você mais hesitou em cadastrar.',
+    'Você guarda {pct} da sua renda. Existe. Nesse ritmo um mês ruim apaga três meses bons, mas existe. Sobe pra 10% e a conta muda de personalidade.',
+    'Sobraram {valor} — {pct}. Prefiro isso a zero, sinceramente. Só não confunde "começou" com "resolveu". Acha mais {valor} em algum gasto e dobra a folga.',
+    '{pct}. O suficiente pra você dizer que guarda. Não o suficiente pra isso importar. Um corte pequeno resolve — começa pelo gasto que você mais hesitou em cadastrar.',
     'Sobra {valor} por mês. Junta 12 meses e ainda não dá pra um susto médio. Não é derrota, é escala errada. Sobe de {pct} pra 10% e a matemática vira do seu lado.',
-    'Guardar {pct} é melhor que 0% e pior que dormir tranquilo. A distância entre os dois é menor do que parece: um gasto recorrente a menos. Abre a lista.',
-    '{nome}, {pct} de poupança é aquele esforço que quase conta. Quase. Falta pouco pra virar de verdade — {valor} a mais por mês e você sai da zona do "quase".',
+    'Guardar {pct} é melhor que 0% e pior que dormir tranquilo. A distância entre os dois é um gasto recorrente. Um. Abre a lista.',
+    '{nome}, {pct} de poupança é o esforço que quase conta. Quase. Vou marcar no calendário assim mesmo. {valor} a mais por mês e você sai da zona do "quase".',
   ],
 
   /** Sem meta de emergência. A meta mais chata e a única que salva. */
@@ -240,18 +317,18 @@ export const LINES = {
     'Não existe reserva de emergência aqui. Existe vida real, que quebra geladeira e demite gente sem aviso. O número que te protege é {valor}. Cria essa meta hoje, mesmo que comece com R$ 20.',
     'Sua reserva de emergência é {valor} e, no momento, ela é uma ideia abstrata. Enquanto for abstrata, qualquer imprevisto vira cartão de crédito. Cria a meta e começa pequeno — pequeno e existindo já é infinitamente mais que zero.',
     '{nome}, todo plano financeiro bonito morre no primeiro imprevisto sem reserva. Seu alvo é {valor}. Não precisa ter tudo hoje, precisa começar hoje. Abre objetivos e cria "Emergência".',
-    'Reserva de emergência: inexistente. Alvo: {valor}. Sei que parece muito — é por isso que ninguém começa. O truque é não olhar pro total e olhar pro primeiro depósito. Cria a meta.',
-    'Sem reserva, você não tem um plano: tem uma esperança. Esperança não paga conserto. Seu alvo é {valor} e o único passo de hoje é criar a meta. O resto vem depois.',
-    'A meta mais chata do app é a que salva sua pele: {valor} de reserva. Ela não tem foto bonita, não dá pra postar, e é a única que te deixa dormir. Cria ela antes de qualquer outra.',
+    'Reserva de emergência: inexistente. Alvo: {valor}. É por isso que quase todo mundo se ferra: olha pro total e desiste. Olha pro primeiro depósito e cria a meta.',
+    'Sem reserva você não tem um plano: tem uma esperança. Esperança não paga conserto. Seu alvo é {valor} e o único passo de hoje é criar a meta. O resto vem depois.',
+    'A meta mais chata do app é a que salva sua pele: {valor} de reserva. Ela não tem foto bonita, não dá pra postar e é a única que te deixa dormir. Cria ela antes de qualquer outra.',
   ],
 
   /** Nenhuma meta cadastrada. Dinheiro sem destino sempre acha um. */
   noGoals: [
-    'Zero metas cadastradas. Então seu dinheiro está indo pra... o que aparecer. E sempre aparece alguma coisa. Dá um nome pro que você quer e ele para de sumir.',
+    'Zero metas cadastradas. Então seu dinheiro está indo pra... o que aparecer. E sempre aparece alguma coisa, né. Dá um nome pro que você quer e ele para de sumir.',
     '{nome}, dinheiro sem destino vira delivery. Não é filosofia, é estatística. Cria uma meta — pode ser boba, pode ser um fone, pode ser "sair da casa dos meus pais". Só precisa ter nome.',
-    'Você não tem nenhum objetivo cadastrado. Dá pra viver assim: cada mês some e você não sabe pra onde. Ou você escreve um objetivo e passa a saber. Escolhe.',
+    'Nenhum objetivo cadastrado. Dá pra viver assim: cada mês some e você não sabe pra onde. Ou você escreve um objetivo e passa a saber. Faz como preferir.',
     'Sem meta, sobrar dinheiro não é vitória — é um saldo esperando um motivo pra ir embora. Cria um objetivo e o saldo passa a ter um trabalho.',
-    'Nenhuma meta. Nenhum plano. Nenhuma pressa, aparentemente. Vou parar por aqui e deixar o botão de criar objetivo bem visível pra você.',
+    'Nenhuma meta. Nenhum plano. Nenhuma pressa, aparentemente. Não vou insistir. Vou só deixar o botão de criar objetivo bem visível aqui.',
     '{nome}, meta não é sobre disciplina, é sobre ter um alvo pra mirar. Sem alvo, todo tiro acerta o nada. Cria a primeira — a mais barata que te empolgar.',
   ],
 
@@ -260,7 +337,7 @@ export const LINES = {
     'Sabe {meta}? No seu ritmo, você chega lá em {tempo}. Seus netos vão adorar. Ou você sobe {valor} por mês e isso vira problema seu, não deles.',
     '{meta} no ritmo atual: {tempo}. O prazo que você mesmo escolheu diz outra coisa. Um de vocês dois está mentindo, e não sou eu. Sobe {valor} por mês e vocês voltam a se falar.',
     'Você quer {meta} numa data. A matemática quer {tempo}. A matemática costuma ganhar essas discussões. Empata com ela: {valor} a mais por mês.',
-    'No ritmo de hoje, {meta} demora {tempo}. Não é falta de vontade, é falta de {valor} por mês. Vontade não deposita — depósito deposita.',
+    'No ritmo de hoje, {meta} demora {tempo}. Não é falta de vontade, é falta de {valor} por mês. Vontade não deposita. Depósito deposita.',
     '{meta} está fora do prazo que você mesmo definiu. Faltam {valor} por mês pra encaixar. Se não der, tudo bem: muda o prazo. Prazo é seu, não é lei. Só não deixa os dois números brigando em silêncio.',
     'Seu ritmo entrega {meta} em {tempo}. Seu prazo não concorda. Duas saídas honestas: sobe {valor} por mês, ou empurra a data e para de se cobrar por uma conta que nunca fechou.',
   ],
@@ -271,11 +348,11 @@ export const LINES = {
    * projeção é "nunca" e a fala precisa dizer isso sem soar como sentença.
    */
   goalNeverAtPace: [
-    'Seu ritmo em {meta} é zero. Zero vezes qualquer número de meses continua zero, então a resposta honesta é: nunca. Não é sentença, é só o que acontece se nada mudar. {valor} por mês já muda tudo.',
-    '{meta} não anda porque não entra dinheiro ali. No ritmo atual você chega nunca — e isso não é drama, é multiplicação. Um depósito de {valor} tira o "nunca" da conta hoje.',
+    'Seu ritmo em {meta} é zero. Zero vezes qualquer número de meses continua zero, então a resposta honesta é: nunca. Não é sentença, é multiplicação. {valor} por mês já muda tudo.',
+    '{meta} não anda porque não entra dinheiro ali. No ritmo atual você chega nunca — e isso não é drama, é aritmética. Um depósito de {valor} tira o "nunca" da conta hoje.',
     'Vou ser direta sobre {meta}: sem depósito, nunca. Não porque você não consegue, mas porque ninguém chega a lugar nenhum parado. Deposita {valor} e a projeção volta a existir.',
     'A projeção de {meta} deu "nunca". Antes que isso soe pesado: "nunca" aqui só significa "nenhum depósito ainda". É o problema mais fácil do app inteiro de resolver. {valor} por mês e ele some.',
-    '{meta}: ritmo zero, previsão nunca. Sabe o que conserta? Qualquer valor. Literalmente qualquer um. Começa com {valor} e a gente conversa de novo mês que vem.',
+    '{meta}: ritmo zero, previsão nunca. Sabe o que conserta? Qualquer valor. Literalmente qualquer um. Começa com {valor} e a gente conversa mês que vem.',
     'Enquanto não entrar dinheiro em {meta}, a data de chegada é nunca. Eu podia inventar um número bonito, mas você merece o real. E o real muda no minuto em que você depositar {valor}.',
   ],
 
@@ -284,7 +361,7 @@ export const LINES = {
     '{meta} está no prazo: chega em {tempo} se você não fizer nada de diferente. E "não fazer nada de diferente" é exatamente o trabalho. Continua depositando {valor}.',
     'No ritmo atual, {meta} cumpre o prazo. Eu queria ter algo sarcástico pra dizer aqui e não tenho. Mantém os {valor} por mês.',
     '{meta}: dentro do combinado, {tempo} pra chegar. O perigo agora não é o dinheiro, é o tédio. Meta que dá certo é chata. Aguenta a chatice e deposita.',
-    'Você prometeu {meta} numa data e está cumprindo. Raro. Segue assim: {valor} por mês, {tempo} restantes, zero surpresas.',
+    'Você prometeu {meta} numa data e está cumprindo. Segue assim: {valor} por mês, {tempo} restantes, zero surpresas.',
     '{meta} vai chegar em {tempo}, no prazo. Não mexe. Sério, não mexe: o jeito mais comum de perder uma meta é "reorganizar" ela.',
     'Tudo certo com {meta} — {tempo} no ritmo de hoje. Se sobrar dinheiro esse mês, joga aqui e antecipa. Se não sobrar, também está tudo bem. Só não para.',
   ],
@@ -302,7 +379,7 @@ export const LINES = {
   /** App recém-instalado. Uma tela vazia tem exatamente um próximo passo. */
   emptyState: [
     '{nome}, o app está vazio. Eu também. Sem dados, sou só uma tela bonita com opinião nenhuma. Cadastra sua renda primeiro — é o campo que destrava todo o resto.',
-    'Bem-vindo. Aqui não tem nada ainda: nem renda, nem conta, nem meta. Sei que "cadastrar tudo" parece trabalhoso. Então não cadastra tudo: cadastra só quanto você ganha. Começa por aí.',
+    'Bem-vindo. Aqui não tem nada ainda: nem renda, nem conta, nem meta. Sei que "cadastrar tudo" parece trabalhoso. Então não cadastra tudo: cadastra só quanto você ganha.',
     'Zero dados, zero análises, zero comentários maldosos meus. Aproveita esse momento de paz — ele acaba assim que você cadastrar sua primeira despesa.',
     '{nome}, a tela vazia é o único estado em que o dinheiro parece simples. Vamos estragar isso juntos: cadastra sua renda e eu começo a trabalhar.',
     'Não tenho nada pra te dizer porque você não me deu nada. É justo. Bota sua renda e uma despesa — com dois números eu já consigo ter opinião.',
@@ -311,12 +388,12 @@ export const LINES = {
 
   /** Nenhuma regra disparou. Ela odeia não ter o que reclamar. */
   allGood: [
-    'Olhei tudo: renda, contas, cartão, assinaturas, metas. Está tudo em ordem. Estou levemente irritada com isso. Sobram {valor} — coloca numa meta antes que eu ache um problema.',
-    '{nome}, procurei um motivo pra te encher o saco e não achei. Sobram {valor}, as contas fecham, as metas andam. Segue exatamente assim.',
+    'Olhei tudo: renda, contas, cartão, assinaturas, metas. Está tudo em ordem. Não, imagina. Tudo bem. Sobram {valor} — coloca numa meta antes que eu ache um problema.',
+    '{nome}, procurei um motivo pra te encher o saco e não achei. Procurei bem. Sobram {valor}, as contas fecham, as metas andam. Segue exatamente assim.',
     'Nada quebrado por aqui. Sua vida financeira está entediante, que é o maior elogio que existe em finanças. Se quiser adiantar alguma meta, tem {valor} disponível.',
     'Relatório completo: está tudo bem. Sim, eu conferi duas vezes. Sim, eu queria ter achado algo. {valor} de folga — usa com propósito e a gente se fala mês que vem.',
     'Tudo certo, {nome}. Contas pagas, metas andando, folga de {valor}. Aproveita esse mês raro em que eu não tenho nada pra falar e reforça uma meta.',
-    'Sem alarmes, sem vermelho, sem sermão. Você está no controle. O único conselho que sobra é o mais chato: continua. E manda {valor} pra uma meta.',
+    'Sem alarme, sem vermelho, sem sermão. Você está no controle e eu estou sem função. O único conselho que sobra é o mais chato: continua. E manda {valor} pra uma meta.',
   ],
 
   /**
@@ -325,12 +402,12 @@ export const LINES = {
    * snapshot — por isso este banco é consumido pela UI, não por `insights.ts`.
    */
   lazyUser: [
+    'Olha quem apareceu. {tempo} depois. Que surpresa boa. Seus números continuam parados exatamente onde você deixou. Atualiza os gastos.',
     '{nome}, faz {tempo} que você não atualiza nada aqui. Seu dinheiro continuou se movendo, sabia? Ele não espera você abrir o app. Cadastra o que mudou.',
-    'Sumiu por {tempo}. Sem julgamento — mas os números que estou te mostrando são de {tempo} atrás, então são ficção. Atualiza seus gastos e eu volto a falar a verdade.',
-    'Última atualização: {tempo} atrás. Estou opinando sobre uma vida financeira que talvez nem exista mais. Me dá 2 minutos de dados novos.',
-    'Você voltou, que bom. Só que os dados não se atualizaram sozinhos nesse tempo — nenhum app faz isso. Passa o olho nos gastos e ajusta o que mudou.',
-    '{tempo} sem aparecer. Eu não guardo mágoa, eu guardo dados, e os seus estão velhos. Atualiza a renda e os gastos e a gente recomeça do zero, sem cobrança.',
-    'Olha quem apareceu. Seus números estão parados no tempo há {tempo}. Não vou fazer drama: atualiza os gastos e eu paro de falar bobagem.',
+    'Sumiu por {tempo}. Não vou comentar. Só que os números que estou te mostrando são de {tempo} atrás, então são ficção. Atualiza e eu volto a falar a verdade.',
+    'Última atualização: {tempo} atrás. Estou opinando sobre uma vida financeira que talvez nem exista mais. Mas quem sou eu. Me dá 2 minutos de dados novos.',
+    'Você voltou. Que bom. Os dados não se atualizaram sozinhos nesse tempo — nenhum app faz isso. Passa o olho nos gastos e ajusta o que mudou.',
+    '{tempo} sem aparecer. Eu não guardo mágoa, {nome}. Eu guardo dados, e os seus venceram. Atualiza a renda e os gastos e a gente recomeça do zero, sem cobrança.',
   ],
 
   // ─────────────────────────── O PLANO DO MÊS ────────────────────────────
@@ -448,6 +525,113 @@ export const LINES = {
     '{valor} de lazer não é a Arrego amolecendo. É a Arrego tendo visto gente demais jurar que ia guardar cada centavo, aguentar seis semanas, estourar num fim de semana e nunca mais abrir um app de finanças na vida. {pct} agora é o seguro contra isso. Gasta seu dinheiro, ele é seu.',
     'Reservei {valor} pra você gastar à toa. À toa mesmo: sem justificar, sem anotar como "investimento em bem-estar". {pct} da renda com destino "viver". Quem não faz isso de propósito acaba fazendo por impulso, no dobro do valor e com culpa de sobremesa. Escolhe uma coisa boa e gasta.',
   ],
+
+  // ──────────────── APLICAR O PLANO (registrar, não mover) ────────────────
+  // Ver o bloco "O ARREGO NÃO MOVE DINHEIRO" no topo. Estes cinco bancos são
+  // os únicos do arquivo em que uma piada mal calibrada faz a pessoa perder
+  // dinheiro de verdade: se ela sair daqui achando que o app transferiu, ela
+  // passa meses com uma reserva que só existe no gráfico. Nenhuma fala destes
+  // bancos pode conter "transferi", "aloquei", "mandei" ou "guardei" na
+  // primeira pessoa. O verbo da Arrego é sempre anotar/registrar/marcar.
+
+  /**
+   * Ela se oferecendo pra registrar a divisão. {nome} {valor} {qtd}.
+   * A oferta já avisa que anotar ≠ transferir — o aviso não pode morar só na
+   * confirmação, porque quem toca no botão já decidiu antes de ler.
+   */
+  applyOffer: [
+    'Já dividi tudo: {valor} em {qtd}. Se você quiser, eu anoto isso nas suas metas agora. Anoto, não transfiro — eu não falo com banco nenhum. A transferência continua sendo sua.',
+    '{nome}, posso registrar {valor} em {qtd} de uma vez, num toque. Fica combinado assim: eu faço a papelada, você faz o dinheiro se mexer no app do seu banco.',
+    'Quer que eu marque a divisão? {valor}, {qtd}. Eu tomo nota aqui, você transfere lá. Divisão de trabalho justa — a parte chata fica comigo.',
+    'Tem {valor} pra distribuir em {qtd}. Eu registro isso na hora. Você transfere quando lembrar. E você vai lembrar, né, {nome}.',
+    '{qtd} esperando {valor}. Posso anotar tudo agora. Aviso desde já, pra ninguém se iludir: anotar não move um centavo. Quem move é você.',
+    'Eu registro {valor} em {qtd} se você pedir. Não peço nada em troca — só que você transfira de verdade depois. Detalhe importante, esse.',
+  ],
+
+  /**
+   * Registrou. AQUI ELA MANDA A PESSOA TRANSFERIR DE VERDADE — sem exceção.
+   * Uma fala deste banco que não mande transferir é um bug, não uma variação.
+   * {nome} {valor} {qtd}.
+   */
+  applyDone: [
+    'Anotei: {valor} em {qtd}. Agora vai lá e transfere de verdade, {nome}, senão esse número é só um desenho bonito na minha tela.',
+    'Registrado, {valor} em {qtd}. Eu não movi um centavo — eu nem sei qual é o seu banco. Abre o app dele e separa o dinheiro. Aí sim vira real.',
+    '{qtd} atualizadas, {valor} no total. No papel. O papel sou eu. A transferência é você, e ela precisa acontecer hoje pra isso não virar ficção.',
+    'Pronto: {valor} anotados em {qtd}. Marquei aqui. Marcar não é guardar. Vai no banco, transfere, e aí a gente pode se orgulhar junto.',
+    'Feito. {valor} distribuídos em {qtd} — no registro. Se você fechar o app agora e não transferir, você tem uma reserva imaginária. Não faz isso, {nome}.',
+    'Anotado: {valor}, {qtd}. Falta a sua parte, que por acaso é a única que envolve dinheiro de verdade. Transfere no app do banco. Eu espero.',
+  ],
+
+  /**
+   * Já aplicou este mês. Passivo-agressivo puro — é o banco onde o registro
+   * mais brilha, porque a pessoa está pedindo à Arrego que minta pra ela.
+   * {nome} {valor}. Sem {qtd}: quem chama aqui não tem depósito novo pra contar.
+   */
+  applyAlready: [
+    'De novo? Já anotei. {valor}, este mês, com essas mãos aqui. Mas se você quiser que eu anote duas vezes o dinheiro que você não tem, é só pedir.',
+    '{nome}, o plano deste mês já foi aplicado: {valor}. Anotado. Como das outras vezes. Anotar de novo não cria dinheiro, cria confusão no seu extrato.',
+    'Já está registrado: {valor}. Uhum. O mês inteiro. Se o que você quer é ver o número subir sem depositar nada, eu entendo o impulso. Não vou ajudar, mas entendo.',
+    'Segunda vez no mesmo botão. {valor} já constam. Eu podia dobrar isso e te dar uma reserva linda que não existe. Prefiro que você me odeie um pouco.',
+    '{valor} deste mês: aplicados. Já. Antes. Por você. Se o depósito não aconteceu de verdade, o problema não é este botão — é o app do seu banco.',
+    'Anotado, {nome}. Anotado da primeira vez, inclusive: {valor}. Não, imagina. Tudo bem tocar de novo. Só não muda nada.',
+  ],
+
+  /** Não há o que aplicar: sem sobra ou sem meta na fila. Seca. */
+  applyNothing: [
+    'Não tem o que registrar. Ou não sobra dinheiro, ou não existe meta pra receber. Nos dois casos o botão não faz mágica.',
+    'Nada a aplicar. Plano vazio não vira depósito — vira nada, que é exatamente o que ele é hoje. Cria uma meta ou libera sobra e volta aqui.',
+    'Zero pra distribuir. Não é erro, é o estado do mês. O botão continua aqui pra quando existir alguma coisa pra dividir.',
+    '{nome}, sem sobra ou sem meta não há divisão. É aritmética, não teimosia minha. Resolve um dos dois e o botão passa a servir.',
+    'O plano deste mês não sugere nenhum depósito. Registrar R$ 0 sujaria seu extrato com linhas que não dizem nada. Não vou fazer isso com você.',
+    'Nada pra anotar. Ou o mês não sobrou, ou nenhuma meta está na fila. As duas coisas têm conserto, e nenhum dos dois é aqui.',
+  ],
+
+  /**
+   * Deu erro ao gravar. Sem piada: informa, garante que nada ficou pela metade
+   * e manda tentar de novo. Quem errou foi o app — ironia aqui é a Arrego se
+   * esquivando da própria falha, que é o oposto do personagem.
+   */
+  applyError: [
+    'Não consegui gravar. Nada foi registrado e suas metas continuam como estavam. Tenta de novo; se insistir em falhar, fecha e abre o app.',
+    'Deu erro ao salvar. Nenhum depósito foi anotado, então não tem nada duplicado nem pela metade. Tenta outra vez.',
+    'Falhei aqui. Sem ironia: o registro não aconteceu e suas metas estão intactas. Tenta de novo em alguns segundos.',
+    'Erro ao gravar o plano. Não registrei nada. Seus dados estão seguros e inalterados. Toca de novo.',
+    '{nome}, não deu pra salvar agora. Nada mudou nas suas metas. Tenta novamente — se continuar, reinicia o app.',
+    'A gravação falhou. Isso é problema meu, não seu, e nada foi anotado. Tenta de novo.',
+  ],
+
+  /**
+   * Falhou E o desfazer também falhou: SOBROU registro no banco.
+   *
+   * Banco separado de `applyError` porque lá todas as falas prometem, com
+   * todas as letras, que "nada foi registrado". Nesse caminho isso é falso, e
+   * mentir sobre dinheiro logo depois de falhar com dinheiro é como se perde
+   * um usuário para sempre. Aqui ela é seca, assume o estrago e manda conferir.
+   * Sem piada: a pessoa precisa AGIR, não rir.
+   */
+  applyPartialError: [
+    'Deu ruim no meio: parte já tinha sido anotada e eu não consegui desfazer. Abre Metas e confere os lançamentos deste mês — o que estiver sobrando, apaga.',
+    'Falhei feio. Alguns depósitos ficaram gravados e o resto não. Não vou fingir que está tudo certo: vai em Metas, olha os lançamentos de hoje e apaga o que não deveria estar lá.',
+    '{nome}, anotei uma parte e travei no meio. Tentei desfazer e também não deu. Confere seus lançamentos em Metas antes de tocar aqui de novo.',
+    'Erro no meio do caminho, e o desfazer falhou junto. Sobrou registro pela metade. Confere Metas — prefiro te dar trabalho a te dar um número errado.',
+    'Metade anotada, metade não, e eu sem conseguir limpar. Isso é culpa minha. Dá uma olhada nos lançamentos deste mês em Metas e ajusta na mão.',
+    'Parei no meio e não consegui voltar atrás. Tem depósito gravado que talvez não devesse existir. Vai em Metas e confere antes de mais nada.',
+  ],
+
+  /**
+   * A pessoa está olhando um mês que ainda não chegou.
+   *
+   * Aqui o passivo-agressivo funciona bem, porque o pedido é genuinamente
+   * absurdo e não há dor envolvida: ela não está no vermelho, está adiantada.
+   */
+  applyFuture: [
+    'Esse mês nem chegou. Posso anotar dinheiro que você ainda não recebeu, mas aí a gente estaria os dois fingindo, e eu prefiro que só você finja.',
+    '{nome}, você quer que eu anote a divisão de um mês que ainda não existe. Adorei a empolgação. Volta pro mês atual e a gente resolve o dinheiro que é real.',
+    'Anotar o futuro é o que eu chamo de reserva imaginária: sobe no gráfico, não sobe na conta. Não vou fazer isso com você. Volta pro mês de hoje.',
+    'Calma. Esse mês ainda não aconteceu. Quando acontecer, eu anoto — com o dinheiro que existir, não com o que você espera que exista.',
+    'Você está planejando um mês que não chegou, e isso é ótimo. Anotar depósito nele não é. Volta pro mês atual.',
+    'Esse dinheiro ainda não é seu. Anotar agora só encheria seu gráfico de mentira bonita. Volta pro mês de hoje e a gente faz direito.',
+  ],
 } as const satisfies LineBank;
 
 /**
@@ -460,14 +644,23 @@ export const LINES = {
  * veredito sobre a versão anterior. App sério mostra o número e cala a boca;
  * quem se explica em três parágrafos é quem está vendendo alguma coisa.
  *
+ * O corte também é o que TORNA a fala passivo-agressiva. "Anotado. Como das
+ * outras vezes." só funciona porque para ali. A mesma ideia em três linhas vira
+ * sermão, e sermão é o registro oposto: quem explica a alfinetada está sendo
+ * chato, não seco. Se uma fala daqui só couber cortando a graça, corta a graça
+ * — a fala seca ainda é a Arrego; a fala longa já não é.
+ *
  * O contrato de tom do topo do arquivo vale INTEIRO aqui, com duas emendas:
  *
- * 1. A SAÍDA PRÁTICA VIRA O BOTÃO. Em `LINES` toda fala termina com a saída
- *    porque lá ela é a única coisa na bolha. Em 90 caracteres, espremer conselho
- *    no fim de toda linha mata a piada e devolve o ruído que viemos cortar. Na
- *    tela a saída já existe, com rótulo próprio e alvo de toque: é o botão do
- *    insight. A fala aponta pro número, o botão resolve. Quando a saída couber
- *    sem custar a graça, ela fica; quando não couber, ela é do botão.
+ * 1. A SAÍDA PRÁTICA VIRA O BOTÃO. Em `LINES` a fala carrega a saída porque lá
+ *    ela é a única coisa na bolha. Em 90 caracteres, espremer conselho no fim de
+ *    toda linha mata a piada e devolve o ruído que viemos cortar. Na tela a saída
+ *    já existe, com rótulo próprio e alvo de toque: é o botão do insight. A fala
+ *    aponta pro número, o botão resolve. Quando a saída couber sem custar a graça,
+ *    ela fica; quando não couber, ela é do botão.
+ *    A ÚNICA EXCEÇÃO É `applyDone`: ali a saída é "vai transferir de verdade" e
+ *    ela NUNCA pode virar responsabilidade do botão, porque não existe botão que
+ *    transfira. Toda fala de `applyDone` manda a pessoa ao banco, custe a piada.
  * 2. Mínimo de 4 variações por banco (em `LINES` são 6). Fala curta tem menos
  *    superfície pra repetição ficar óbvia.
  *
@@ -492,11 +685,11 @@ export const LINES = {
 export const SHORT = {
   /** Sem renda não há régua, e sem régua nenhum outro número significa nada. */
   noIncome: [
-    'Você me contou o que gasta. Faltou a parte de onde vem o dinheiro.',
+    'Você me contou o que gasta. Faltou de onde vem o dinheiro. Detalhe pequeno.',
     'Renda cadastrada: nenhuma. Estou assumindo fé e boa vontade.',
     'Sem renda eu não tenho régua. R$ 200 é muito ou é pouco? Não faço ideia.',
     '{nome}, sem saber o que entra, toda conta que eu fizer dá zero.',
-    'Todo mundo aqui está esperando você dizer quanto ganha. Inclusive eu.',
+    'Todo mundo aqui está esperando você dizer quanto ganha. Sem pressa.',
   ],
 
   /** Mês no vermelho: o deboche sai de cena, a conta já dói sozinha. */
@@ -519,11 +712,11 @@ export const SHORT = {
 
   /** O gasto que ninguém vê sair. Ironia no automático, não na pessoa. */
   subscriptionHeavy: [
-    '{valor} em assinaturas. {pct} do seu salário. Só estou deixando aqui.',
-    '{qtd}, {valor} por mês, {pct} da renda. Sem julgamento. Só o número.',
+    '{valor} em assinaturas. {pct} do seu salário. Mas quem sou eu pra falar.',
+    '{qtd}, {valor} por mês, {pct} da renda. Não vou comentar. Só o número.',
     '{pct} da sua renda sai sozinha todo mês, sem te avisar. {qtd}.',
     'Tem {qtd} aí. Alguma você esqueceu que assinou. Ela não esqueceu de você.',
-    '{valor} por mês em {qtd}. O total do ano eu prefiro não calcular hoje.',
+    '{valor} por mês em {qtd}. Multiplica por 12 se quiser estragar seu dia.',
   ],
 
   /** Parcelar não é crime e não vira piada sobre quem parcelou. */
@@ -538,7 +731,7 @@ export const SHORT = {
   /** Guardando bem. Reconhece sem bajular — e reclama de ficar sem assunto. */
   goodSavings: [
     '{pct} de sobra. Isso é bom. Estou desconfortável com isso.',
-    'Você guarda {pct}. Me deixou sem assunto. Parabéns, eu acho.',
+    'Você guarda {pct}. Me deixou sem assunto. Um recorde pessoal, imagino.',
     '{valor} soltos na conta. Dinheiro sem nome some sem explicação.',
     'Sobrar {pct} não foi sorte, foi escolha. Reconhecido.',
     '{nome}, sua taxa é {pct}. Não vou fazer piada: eu sei perder.',
@@ -547,10 +740,10 @@ export const SHORT = {
   /** Existe, mas ainda não conta. */
   lowSavings: [
     'Você guarda {pct}. Nesse ritmo, um mês ruim apaga três meses bons.',
-    'Sobram {valor}. É o começo de alguma coisa. Não confunda com resolvido.',
+    'Sobraram {valor}. É o começo de alguma coisa. Não confunda com resolvido.',
     '{pct}: o suficiente pra dizer que guarda, não pra que isso importe.',
     'Sobra {valor} por mês. Doze meses disso não pagam um susto médio.',
-    '{nome}, {pct} é o esforço que quase conta. Quase.',
+    '{nome}, {pct} é o esforço que quase conta. Quase. Vou anotar assim mesmo.',
   ],
 
   /** {valor} é o ALVO da reserva, nunca um depósito. */
@@ -573,11 +766,11 @@ export const SHORT = {
 
   /** Existe um ETA, só que ruim. A piada é com o prazo, não com quem o escolheu. */
   goalTooSlow: [
-    'No seu ritmo, {meta} chega em {tempo}. Seus netos agradecem.',
+    'No seu ritmo, {meta} chega em {tempo}. Seus netos vão adorar.',
     '{meta} em {tempo}. Seu prazo discorda. Um de vocês está mentindo.',
     'Você quer {meta} numa data. A matemática quer {tempo}. Ela costuma ganhar.',
     'Faltam {valor} por mês em {meta}. Vontade não deposita.',
-    '{meta}: {tempo} no ritmo de hoje. Sobe {valor} ou muda a data. As duas valem.',
+    '{meta}: {tempo} no ritmo de hoje. Sobe {valor} ou muda a data.',
   ],
 
   /** Ritmo zero. "Nunca" é multiplicação, não sentença — e a fala precisa dizer isso. */
@@ -618,20 +811,20 @@ export const SHORT = {
 
   /** Nenhuma regra disparou. Ela odeia não ter o que reclamar. */
   allGood: [
-    'Procurei um motivo pra te encher o saco e não achei. Sobram {valor}.',
-    'Está tudo em ordem. Estou levemente irritada com isso.',
+    'Procurei um motivo pra te encher o saco e não achei. Procurei bem.',
+    'Está tudo em ordem. Não, imagina. Tudo bem. Sobram {valor}.',
     'Sua vida financeira está entediante. É o maior elogio que existe aqui.',
     '{nome}, conferi duas vezes. Sem alarme, sem vermelho, sem sermão.',
-    'Tudo certo, {valor} de folga. Um mês raro em que eu não tenho assunto.',
+    'Tudo certo, {valor} de folga. Estou sem função e levemente irritada.',
   ],
 
   /** Dados velhos: a análise vira ficção. Sem cobrança, a pessoa voltou. */
   lazyUser: [
-    'Faz {tempo} que você não atualiza nada. Seu dinheiro não esperou.',
+    'Olha quem apareceu. {tempo} depois. Que surpresa boa.',
     'Estes números são de {tempo} atrás. Ou seja: são ficção.',
     '{tempo} sem aparecer. Eu não guardo mágoa, guardo dados. Os seus venceram.',
-    'Olha quem apareceu. Seus números estão parados há {tempo}.',
-    '{nome}, opinar sobre uma vida financeira de {tempo} atrás é chute.',
+    'Faz {tempo} que você não atualiza nada. Seu dinheiro não esperou.',
+    '{nome}, opino sobre uma vida de {tempo} atrás. Mas quem sou eu.',
   ],
 
   // ─────────────────────────── O PLANO DO MÊS ────────────────────────────
@@ -711,6 +904,75 @@ export const SHORT = {
     '{valor} pra torrar à toa. Sem justificar, sem anotar como bem-estar.',
     '{nome}, lazer que é "o que sobrar" vira zero. Por isso {pct} vem antes.',
   ],
+
+  // ──────────────── APLICAR O PLANO (registrar, não mover) ────────────────
+
+  /** A oferta já diz que anotar ≠ transferir. {nome} {valor} {qtd}. */
+  applyOffer: [
+    'Posso anotar {valor} em {qtd}. Anotar. Transferir continua com você.',
+    '{nome}, registro {valor} em {qtd} num toque. O banco é problema seu.',
+    'Quer que eu divida? {valor}, {qtd}. Eu marco aqui, você transfere lá.',
+    'Tem {valor} pra {qtd}. Eu anoto, você move o dinheiro. Combinado?',
+    '{qtd} esperando {valor}. Eu registro. Registrar não move um centavo.',
+  ],
+
+  /**
+   * A ÚNICA exceção à regra "a saída é do botão": toda fala daqui manda a
+   * pessoa transferir de verdade. Não existe botão que transfira, então a
+   * fala não tem pra quem delegar. {nome} {valor} {qtd}.
+   */
+  applyDone: [
+    'Anotei {valor} em {qtd}. Agora transfere de verdade. Senão é só desenho.',
+    'Registrado: {valor}, {qtd}. Eu não movi nada. Move você, no seu banco.',
+    '{qtd}, {valor}. No papel. O papel sou eu. Vai lá e separa o dinheiro.',
+    '{nome}, marquei {valor} em {qtd}. Marcar não é guardar. Vai no banco.',
+    'Feito no registro: {valor}, {qtd}. Sem transferir, a reserva é imaginária.',
+  ],
+
+  /** Já aplicou este mês. {nome} {valor} — sem {qtd}, não há depósito novo. */
+  applyAlready: [
+    'De novo? Já anotei {valor} este mês. Mas tudo bem. Uhum.',
+    '{valor} já constam. Tocar de novo não cria dinheiro, cria confusão.',
+    'Já está registrado: {valor}. Anotado. Como das outras vezes.',
+    '{nome}, o plano deste mês já foi aplicado: {valor}. Não, imagina. Tudo bem.',
+    'Segunda vez no mesmo botão. {valor} já estão aqui. No banco, não sei.',
+  ],
+
+  /** Sem sobra ou sem meta. Seca — o botão não faz mágica. */
+  applyNothing: [
+    'Não tem o que registrar. Sem sobra ou sem meta, não há divisão.',
+    'Nada a aplicar. Plano vazio não vira depósito.',
+    'Zero pra distribuir. Não é erro, é o estado do mês.',
+    '{nome}, cria uma meta ou libera sobra. Aí o botão passa a servir.',
+    'Nenhum depósito sugerido. Registrar R$ 0 só sujaria seu extrato.',
+  ],
+
+  /** Erro do app. Sem piada: quem errou fui eu. Informa e manda tentar. */
+  applyError: [
+    'Não consegui gravar. Nada foi registrado. Tenta de novo.',
+    'Deu erro ao salvar. Suas metas estão como antes. Tenta outra vez.',
+    'Falhei. Sem ironia: o registro não aconteceu. Tenta de novo.',
+    '{nome}, não deu pra salvar. Nada mudou nas suas metas. Toca de novo.',
+    'Erro ao gravar. Nada foi anotado. Se insistir, reinicia o app.',
+  ],
+
+  /** Sobrou registro pela metade. Não prometa que nada foi gravado — foi. */
+  applyPartialError: [
+    'Anotei parte e travei. Confere seus lançamentos em Metas.',
+    'Deu ruim no meio e sobrou registro. Olha as Metas antes de repetir.',
+    '{nome}, metade anotada e não consegui desfazer. Confere em Metas.',
+    'Falhei no meio. Tem depósito sobrando — apaga em Metas.',
+    'Parei no meio e não voltei atrás. Confere os lançamentos de hoje.',
+  ],
+
+  /** Mês que ainda não chegou. Anotar aqui é reserva imaginária. */
+  applyFuture: [
+    'Esse mês nem chegou. Volta pro atual e a gente faz com dinheiro real.',
+    '{nome}, esse dinheiro ainda não é seu. Volta pro mês de hoje.',
+    'Anotar o futuro sobe no gráfico e não sobe na conta. Volta um mês.',
+    'Calma. Quando o mês chegar, eu anoto. Volta pro mês atual.',
+    'Reserva imaginária eu não faço. Volta pro mês de hoje.',
+  ],
 } as const satisfies Record<keyof typeof LINES, readonly string[]>;
 
 /**
@@ -722,6 +984,12 @@ export const SHORT = {
  * uma meta atrasada embaixo da outra — a seed ainda precisa carregar o id:
  * `shortLine('goalTooSlow', hashSeed(month, goal.id), vars)`. Sem o id, duas
  * metas recebem a mesma frase lado a lado e a personagem desmonta na hora.
+ *
+ * Nos bancos `apply*` a seed NÃO pode ser só o mês: a pessoa toca no botão e a
+ * resposta aparece na hora, então `applyOffer` e `applyDone` cairiam na mesma
+ * posição da lista e ela veria a oferta e a confirmação com a mesma cara. A
+ * chave já entra na seed aqui dentro e resolve isso sozinha — é só não passar
+ * seeds diferentes pra cada uma achando que ajuda.
  *
  * `vars` é opcional porque banco sem placeholder (`emptyState`, `noGoals`) não
  * deveria ser obrigado a passar `{}`. Chave sem valor continua saindo como

@@ -25,7 +25,14 @@
  * mexerem. O app diz isso em voz alta em vez de esconder a régua.
  */
 
-import type { Cents, Goal, GoalProjection, MonthKey, MonthlySnapshot } from '@/types/models';
+import type {
+  Cents,
+  Goal,
+  GoalDeposit,
+  GoalProjection,
+  MonthKey,
+  MonthlySnapshot,
+} from '@/types/models';
 import { monthKeyFromISO, monthsBetween } from '@/utils/date';
 import { ratio } from '@/utils/money';
 import {
@@ -427,6 +434,81 @@ function toAllocation(
     shortfallCents: shortfall,
     rankReason,
   };
+}
+
+/* ─────────────────── Aplicar o plano (registrar, não mover) ─────────────── */
+
+/**
+ * A NOTA QUE MARCA UM DEPÓSITO FEITO PELO PLANO.
+ *
+ * É o que permite saber, no mês seguinte, que o plano já foi aplicado — e o que
+ * distingue "a Arrego registrou isso por mim" de "eu registrei na mão".
+ * Mudar este texto quebra a detecção de repetição em meses já gravados.
+ */
+export const PLAN_NOTE_PREFIX = 'Plano de';
+
+export function planNote(month: MonthKey): string {
+  return `${PLAN_NOTE_PREFIX} ${month}`;
+}
+
+export type PlannedDeposit = {
+  goalId: string;
+  label: string;
+  emoji: string;
+  amountCents: Cents;
+};
+
+/**
+ * O que a Arrego vai REGISTRAR nas metas se a pessoa mandar.
+ *
+ * ┌────────────────────────────────────────────────────────────────────────┐
+ * │ ISTO NÃO MOVE DINHEIRO NENHUM. O Arrego não fala com banco: ele é um   │
+ * │ caderno. Aplicar o plano ANOTA que a pessoa separou o dinheiro — quem  │
+ * │ separa de verdade é ela, no app do banco dela. Toda cópia de tela que  │
+ * │ falar disso precisa deixar isso explícito, porque a alternativa é a    │
+ * │ pessoa achar que o app transferiu e ficar meses com uma reserva que só │
+ * │ existe no gráfico.                                                     │
+ * └────────────────────────────────────────────────────────────────────────┘
+ *
+ * Só entram metas com sugestão > 0: registrar depósito de R$ 0 seria sujar o
+ * extrato com linhas que não dizem nada.
+ */
+export function plannedDeposits(plan: MonthlyPlan): PlannedDeposit[] {
+  if (!plan.viable) return [];
+  return plan.allocations
+    .filter((allocation) => allocation.suggestedCents > 0)
+    .map((allocation) => ({
+      goalId: allocation.goalId,
+      label: allocation.label,
+      emoji: allocation.emoji,
+      amountCents: allocation.suggestedCents,
+    }));
+}
+
+export function plannedDepositsTotal(plan: MonthlyPlan): Cents {
+  return plannedDeposits(plan).reduce((total, item) => total + item.amountCents, 0);
+}
+
+/**
+ * O plano deste mês já foi aplicado?
+ *
+ * Sem esta checagem, tocar duas vezes no botão registra tudo duas vezes e a
+ * pessoa vê uma reserva que dobrou sozinha — o tipo de erro que faz alguém
+ * desinstalar um app de dinheiro e nunca mais voltar.
+ */
+export function planAlreadyApplied(deposits: GoalDeposit[], month: MonthKey): boolean {
+  const note = planNote(month);
+  return deposits.some(
+    (deposit) => deposit.note === note && monthKeyFromISO(deposit.depositedOn) === month,
+  );
+}
+
+/** Quanto já foi registrado pelo plano neste mês. Para ela dizer o número certo. */
+export function appliedPlanTotal(deposits: GoalDeposit[], month: MonthKey): Cents {
+  const note = planNote(month);
+  return deposits
+    .filter((deposit) => deposit.note === note && monthKeyFromISO(deposit.depositedOn) === month)
+    .reduce((total, deposit) => total + deposit.amountCents, 0);
 }
 
 /** Quanto do que entra vira lazer. Para a tela dizer "X% da sua renda". */

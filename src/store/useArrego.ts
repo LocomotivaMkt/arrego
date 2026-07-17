@@ -43,7 +43,36 @@ import {
 } from '@/db/repositories';
 import { buildSnapshot, projectAllGoals, type FinancialData } from '@/engine/analysis';
 import { generateInsights, topInsight } from '@/engine/insights';
-import { buildMonthlyPlan, type MonthlyPlan } from '@/engine/plan';
+import {
+  buildMonthlyPlan,
+  planAlreadyApplied,
+  plannedDeposits,
+  planNote,
+  type MonthlyPlan,
+} from '@/engine/plan';
+
+/**
+ * O que aconteceu ao aplicar o plano. `applied: false` não é erro: o caso mais
+ * comum é a pessoa tocar de novo num mês que já foi aplicado, e a Arrego precisa
+ * do motivo para responder a coisa certa em vez de um "pronto!" mentiroso.
+ */
+export type ApplyPlanResult = {
+  readonly applied: boolean;
+  /**
+   * 'ok'           — anotado.
+   * 'ja-aplicado'  — o plano deste mês já foi anotado antes.
+   * 'nada-a-aplicar' — sem sobra ou sem meta com sugestão > 0.
+   * 'mes-futuro'   — a pessoa está olhando um mês que ainda não chegou.
+   * 'erro'         — falhou e o rollback deu certo: NADA ficou gravado.
+   * 'erro-parcial' — falhou E o rollback também falhou: SOBROU registro no
+   *                  banco. Quem responde NÃO pode usar a fala de 'erro', que
+   *                  promete "nada foi anotado" — seria o app mentindo sobre
+   *                  dinheiro logo depois de falhar com ele.
+   */
+  readonly reason: 'ok' | 'ja-aplicado' | 'nada-a-aplicar' | 'mes-futuro' | 'erro' | 'erro-parcial';
+  readonly count: number;
+  readonly totalCents: number;
+};
 import type {
   Card,
   CardPurchase,
@@ -58,7 +87,7 @@ import type {
   Profile,
   Subscription,
 } from '@/types/models';
-import { currentMonthKey } from '@/utils/date';
+import { currentMonthKey, dateInMonth, monthKeyFromISO, todayISO } from '@/utils/date';
 import { create } from 'zustand';
 
 export type ArregoState = {
@@ -111,6 +140,12 @@ export type ArregoState = {
   removeGoal: (id: string) => Promise<void>;
 
   addDeposit: (input: GoalDepositInput) => Promise<void>;
+  /**
+   * Registra de uma vez o que o plano do mês sugeriu para cada meta.
+   * NÃO move dinheiro — o Arrego é caderno, não banco. Ver `applyPlan` na
+   * implementação e `plannedDeposits` em '@/engine/plan'.
+   */
+  applyPlan: () => Promise<ApplyPlanResult>;
   removeDeposit: (id: string) => Promise<void>;
 
   wipeEverything: () => Promise<void>;
@@ -487,6 +522,104 @@ export const useArrego = create<ArregoState>()((set, get) => {
         const deposit = await goalsRepo.createDeposit(input);
         set((s) => ({ deposits: insertSorted(s.deposits, deposit, byDeposit) }));
       }),
+
+    /**
+     * Registra, de uma vez, o que o plano do mês sugeriu para cada meta.
+     *
+     * NÃO MOVE DINHEIRO. O Arrego não fala com banco nenhum — ele anota. Quem
+     * transfere é a pessoa, no app do banco dela. Quem chamar isto é obrigado a
+     * dizer isso na tela.
+     *
+     * Devolve o que aconteceu para a Arrego poder comentar com número real em
+     * vez de um "pronto!" genérico.
+     */
+    applyPlan: async () => {
+      const state = get();
+      const month = state.month;
+      const plan = selectPlan(state);
+
+      // MÊS FUTURO NÃO SE ANOTA. O seletor de mês avança sem limite e a renda
+      // recorrente conta em qualquer mês, então o plano de outubro parece
+      // perfeitamente viável hoje. Só que `goalSavedCents` soma TODO depósito
+      // sem olhar a data: anotar aqui faria a reserva subir AGORA com dinheiro
+      // que ainda não entrou, e o card ainda chamaria isso de "guardado até
+      // agora". Repetível mês a mês, é a reserva-fantasma que este app existe
+      // para não criar. A trava fica aqui, na fonte, e não só escondendo o
+      // botão: a tela é uma porta, não a fechadura.
+      if (month > currentMonthKey()) {
+        return { applied: false, reason: 'mes-futuro', count: 0, totalCents: 0 } as const;
+      }
+
+      if (planAlreadyApplied(state.deposits, month)) {
+        return { applied: false, reason: 'ja-aplicado', count: 0, totalCents: 0 } as const;
+      }
+
+      const planned = plannedDeposits(plan);
+      if (planned.length === 0) {
+        return { applied: false, reason: 'nada-a-aplicar', count: 0, totalCents: 0 } as const;
+      }
+
+      const note = planNote(month);
+      // Mês corrente grava com a data de hoje; mês passado, no último dia
+      // DAQUELE mês. Gravar retroativo com a data de hoje jogaria o registro no
+      // mês errado e o extrato passaria a mentir.
+      const today = todayISO();
+      const date = monthKeyFromISO(today) === month ? today : dateInMonth(31, month);
+
+      const created: GoalDeposit[] = [];
+      try {
+        for (const item of planned) {
+          created.push(
+            await goalsRepo.createDeposit({
+              goalId: item.goalId,
+              amountCents: item.amountCents,
+              depositedOn: date,
+              note,
+            }),
+          );
+        }
+      } catch (error) {
+        // Metade gravada é pior que nada: a pessoa veria a reserva subir e o
+        // notebook parado, sem entender por quê. Desfaz o que entrou e reporta.
+        let rolledBack = true;
+        for (const deposit of created) {
+          try {
+            await goalsRepo.removeDeposit(deposit.id);
+          } catch {
+            // Nem desfazer deu. Sobrou registro no banco, e a Arrego NÃO pode
+            // dizer "nada foi anotado" — as falas de `applyError` afirmam isso
+            // textualmente. Sinaliza para quem chama escolher o outro banco.
+            rolledBack = false;
+          }
+        }
+        // Em qualquer um dos dois caminhos a memória pode ter divergido do
+        // disco. Recarregar da fonte da verdade é o único jeito de a tela
+        // mostrar o que realmente existe.
+        try {
+          set({ deposits: await goalsRepo.listDeposits() });
+        } catch {
+          // Se nem ler dá, o erro original já é o que importa reportar.
+        }
+        set({ error: messageOf(error) });
+        return {
+          applied: false,
+          reason: rolledBack ? 'erro' : 'erro-parcial',
+          count: 0,
+          totalCents: 0,
+        } as const;
+      }
+
+      set((s) => ({
+        deposits: created.reduce((list, deposit) => insertSorted(list, deposit, byDeposit), s.deposits),
+      }));
+
+      return {
+        applied: true,
+        reason: 'ok',
+        count: created.length,
+        totalCents: created.reduce((total, deposit) => total + deposit.amountCents, 0),
+      } as const;
+    },
 
     removeDeposit: (id) =>
       write(async () => {
